@@ -19,122 +19,146 @@ export default function MuralCanvas({ artistName, wallCode }) {
   const [isEraser, setIsEraser] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [capType, setCapType] = useState("standard"); // 'skinny', 'standard', or 'fat'
-  // 1. Setup the Ref to track the color without re-running the effect
+  const [bgType, setBgType] = useState("none");
+  
   const colorRef = useRef(activeColor);
-
-  //  Add a Ref for the brush size (just like we did for color)
   const sizeRef = useRef(brushSize);
-
-  // We use a ref so the p5 loop can see the "Clear" command immediately
   const clearFlag = useRef(false);
-
-  //  Create the Ref near your other refs
   const eraserRef = useRef(false);
-
   const capRef = useRef("standard");
-  // Pre-load the sounds so there's no delay when clicking
   const spraySound = new Audio("/sounds/paintingSound.wav");
   spraySound.loop = true;
-
   const rattleSound = new Audio("/sounds/sprayCanShake.wav");
+
+  const bgRef = useRef("none");
 
   useEffect(() => {
     colorRef.current = activeColor;
     eraserRef.current = isEraser;
     sizeRef.current = brushSize;
     capRef.current = capType;
-  }, [activeColor, isEraser, brushSize, capType]);
+    bgRef.current = bgType;
+  }, [activeColor, isEraser, brushSize, capType, bgType]);
 
-  // 3. The Main p5 Effect
+  // --- 3. THE MAIN P5.JS DRAWING ENGINE ---
   useEffect(() => {
-    let drips = []; // Array to store active drips
+    let drips = [];    // Stores position and life of active paint drips
+    let textures = {}; // Stores the Brick, Stone, and Concrete image files
+    let pg;            // The "Paint Layer" (an off-screen buffer that keeps paint separate from the wall)
+
     const sketch = (p) => {
-      p.setup = () => {
+      
+      // [INITIAL SETUP]: Runs once when the canvas is created
+      p.setup = async () => {
         const container = renderRef.current;
         if (!container) return;
-        p.createCanvas(container.offsetWidth, container.offsetHeight).parent(
-          container,
-        );
-        p.background(10, 10, 10);
+        p.createCanvas(container.offsetWidth, container.offsetHeight).parent(container);
+        
+        // CREATE PAINT BUFFER: This prevents the wall texture from erasing the paint
+        pg = p.createGraphics(p.width, p.height);
+        pg.clear(); // Starts fully transparent
+
+        // ASSET LOADING: Fetching the wall textures from your public folder
+        try {
+          textures.brick = await p.loadImage('/backgrounds/redBrick1k.jpg');
+          textures.stone = await p.loadImage('/backgrounds/greyBrick.png');
+          textures.concrete = await p.loadImage('/backgrounds/concrete.jpg');
+        } catch (err) {
+          console.error("Texture Load Failed:", err);
+        }
       };
 
+      // [WALL RENDERER]: Draws the selected texture or black background
+      const drawWall = () => {
+        const currentBg = bgRef.current;
+        if (currentBg !== 'none' && textures[currentBg]) {
+          p.image(textures[currentBg], 0, 0, p.width, p.height);
+          p.fill(0, 0, 0, 80); // Dark overlay to make neon colors pop
+          p.rect(0, 0, p.width, p.height);
+        } else {
+          p.background(10, 10, 10); // Default Studio Black
+        }
+      };
+
+      // [RESPONSIVE LOGIC]: Keeps the canvas full-screen on window resize
       p.windowResized = () => {
         const container = renderRef.current;
         if (container) {
           p.resizeCanvas(container.offsetWidth, container.offsetHeight);
-          p.background(10, 10, 10); // Note: This clears the wall!
+          // Transfer old paint to a new buffer size so we don't lose the mural
+          let newPg = p.createGraphics(p.width, p.height);
+          newPg.image(pg, 0, 0);
+          pg = newPg;
+          drawWall();
         }
       };
+
+      // [MAIN LOOP]: Runs 60 times per second
       p.draw = () => {
+        // STEP 1: Always draw the wall first (the bottom layer)
+        drawWall();
+
+        // Sync React State with the p5 Loop
         const currentColor = colorRef.current;
         const currentSize = sizeRef.current;
         const isErasing = eraserRef.current;
 
+        // COMMAND: CLEAR WALL (Triggered by the UI Button)
         if (clearFlag.current) {
-          p.background(10, 10, 10);
+          pg.clear();
           drips = [];
           clearFlag.current = false;
         }
 
+        // STEP 2: PAINTING INPUT (Only if mouse is pressed)
         if (p.mouseIsPressed) {
-          // 1. Play sound once when pressing
           if (spraySound.paused) spraySound.play();
 
-          p.noStroke();
-
-          // 2. Line Smoother Math
+          // KINK FIX: Reset mouse position if user clicks far away from last spray
           const distance = p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY);
-          const steps = p.max(1, p.floor(distance / 5));
-
-          // 3. CAP CONFIG (Moved outside the loop for performance)
-          const currentCap = capRef.current;
-          let particleCount = 20,
-            spread = currentSize,
-            pMin = 1,
-            pMax = 3,
-            dripChance = 0.04;
-
-          if (currentCap === "skinny") {
-            particleCount = 35;
-            spread = currentSize * 0.4;
-            pMin = 0.5;
-            pMax = 1.5;
-            dripChance = 0.01;
-          } else if (currentCap === "fat") {
-            particleCount = 12;
-            spread = currentSize * 2.2;
-            pMin = 2;
-            pMax = 5;
-            dripChance = 0.08;
+          if (distance > 100) {
+            p.pmouseX = p.mouseX;
+            p.pmouseY = p.mouseY;
           }
 
-          // 4. THE DRAWING LOOP (Smoothing)
+          // CAP & SPREAD LOGIC: Adjusts "Skinny" vs "Fat" spray patterns
+          const currentCap = capRef.current;
+          let particleCount = 20, spread = currentSize, pMin = 1, pMax = 3, dripChance = 0.04;
+
+          if (currentCap === "skinny") {
+            particleCount = 35; spread = currentSize * 0.4; pMin = 0.5; pMax = 1.5; dripChance = 0.01;
+          } else if (currentCap === "fat") {
+            particleCount = 12; spread = currentSize * 2.2; pMin = 2; pMax = 5; dripChance = 0.08;
+          }
+
+          // ERASER MODE: "Cuts" through the paint layer to show the wall underneath
+          if (isErasing) pg.erase(); else pg.noErase();
+          pg.noStroke();
+
+          // SPRAY SIMULATION: Smoothly interpolates dots between mouse frames
+          const steps = p.max(1, p.floor(distance / 5));
           for (let s = 0; s < steps; s++) {
             const lerpX = p.lerp(p.pmouseX, p.mouseX, s / steps);
             const lerpY = p.lerp(p.pmouseY, p.mouseY, s / steps);
 
             if (isErasing) {
-              p.fill(10, 10, 10);
-              p.ellipse(lerpX, lerpY, currentSize * 1.5);
+              pg.ellipse(lerpX, lerpY, currentSize * 2);
             } else {
-              p.fill(currentColor);
+              pg.fill(currentColor);
               for (let i = 0; i < particleCount; i++) {
                 let offsetX = p.randomGaussian(0, spread);
                 let offsetY = p.randomGaussian(0, spread);
-                p.ellipse(
-                  lerpX + offsetX,
-                  lerpY + offsetY,
-                  p.random(pMin, pMax),
-                );
+                pg.ellipse(lerpX + offsetX, lerpY + offsetY, p.random(pMin, pMax));
               }
             }
           }
+          pg.noErase(); // Reset buffer to standard paint mode
 
-          // 5. DRIP LOGIC (Only one check per frame, not per step!)
+          // DRIP GENERATOR: Spawns new drips based on cap type
           if (!isErasing && p.random(1) < dripChance) {
             drips.push({
               x: p.mouseX + p.random(-spread / 2, spread / 2),
-              y: p.mouseY + spread / 2,
+              y: p.mouseY,
               velocity: p.random(1.0, 2.0),
               size: p.random(1, 2),
               color: currentColor,
@@ -142,31 +166,36 @@ export default function MuralCanvas({ artistName, wallCode }) {
             });
           }
         } else {
-          // Stop sound when not pressing
+          // Input released: Stop sounds
           spraySound.pause();
           spraySound.currentTime = 0;
         }
 
-        // --- DRIP ANIMATION ENGINE ---
+        // STEP 3: DRIP PHYSICS: Animates drops sliding down the wall
         for (let i = drips.length - 1; i >= 0; i--) {
           let d = drips[i];
-          p.noStroke();
-          p.fill(d.color);
-          p.ellipse(d.x, d.y, d.size, d.size);
+          pg.noStroke();
+          pg.fill(d.color);
+          pg.ellipse(d.x, d.y, d.size);
           d.y += d.velocity;
-          d.velocity *= 0.99;
-          d.life--;
+          d.velocity *= 0.99; // Air friction
+          d.life--;           // Drip "dries" and disappears
           if (d.life <= 0) drips.splice(i, 1);
         }
 
-        // --- MOUSE TRACKING ---
-        p.mouseMoved = () => setMousePos({ x: p.mouseX, y: p.mouseY });
-        p.mouseDragged = () => setMousePos({ x: p.mouseX, y: p.mouseY });
-      }; // End p.draw
-    }; // End sketch
+        // STEP 4: LAYER COMPOSITION: Stamp the paint layer onto the wall
+        p.image(pg, 0, 0); 
+      };
+
+      // STEP 5: CURSOR TRACKING: Keeps the flashlight/beam following the mouse
+      p.mouseMoved = () => setMousePos({ x: p.mouseX, y: p.mouseY });
+      p.mouseDragged = () => setMousePos({ x: p.mouseX, y: p.mouseY });
+    };
+
+    // React Lifecycle: Initialize and Cleanup the p5 Instance
     p5Instance.current = new p5(sketch);
     return () => p5Instance.current && p5Instance.current.remove();
-  }, []); // Empty dependency array keeps the canvas persistent
+  }, []);
 
   return (
     <motion.div
@@ -262,6 +291,26 @@ export default function MuralCanvas({ artistName, wallCode }) {
           max-width-[95%] mx-auto
          "
         >
+         {/* SURFACE SELECTOR */}
+          <div className="flex items-center gap-3 pr-4 border-r border-white/10">
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] uppercase text-gray-500 font-bold mb-1">Surface</span>
+              <div className="flex gap-2">
+                <button onClick={() => { setBgType("none")}} className={`w-8 h-8 rounded-full border-2 ${bgType === "none" ? "border-white" : "border-transparent opacity-50"} bg-gray-900`} title="Studio Black" />
+                {["brick", "stone", "concrete"].map((surface) => (
+                  <button
+                    key={surface}
+                    onClick={() => { setBgType(surface)}}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${bgType === surface ? "border-white scale-110" : "border-transparent opacity-50"}`}
+                    style={{
+                      backgroundImage: `url(/backgrounds/${surface === 'brick' ? 'redBrick1k.jpg' : surface === 'stone' ? 'greyBrick.png' : 'concrete.jpg'})`,
+                      backgroundSize: "cover",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
           {/* BRUSH SIZE SLIDER */}
           <div className="flex items-center gap-3 px-4 border-r border-white/10">
             <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">
