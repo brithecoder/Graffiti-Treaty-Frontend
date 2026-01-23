@@ -54,7 +54,7 @@ export default function FrontPage() {
           nickname: artistTag,
           muralName: muralName,
           partySize: partySize,
-          durationMinutes: duration, 
+          durationMinutes: Number(duration), 
         }),
       });
 
@@ -67,7 +67,7 @@ export default function FrontPage() {
           muralName: muralName,
           wallCode: data.wallCode,
           adminCode: data.adminCode, 
-          durationSeconds: duration * 60,
+          durationSeconds: Number(duration) * 60,
           isAdmin: true,
           isStarted: false,
         });
@@ -194,8 +194,12 @@ export default function FrontPage() {
     {/* 1. THE CANVAS LAYER (Bottom) */}
     <div className="absolute inset-0 z-10">
       <MuralCanvas
-        {...activeWallData}
-        crewCount={crewCount} // Pass explicitly if not in activeWallData
+       {...activeWallData}
+       isStarted={activeWallData.isStarted}
+       endTime={activeWallData.expiresAt} // Pass the timestamp here too!
+       crewCount={crewCount}
+      socket={socket}
+      durationMinutes={duration}
         onExit={() => setView("MENU")}
       />
     </div>
