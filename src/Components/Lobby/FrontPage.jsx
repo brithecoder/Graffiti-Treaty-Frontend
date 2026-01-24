@@ -17,30 +17,31 @@ export default function FrontPage() {
   const [activeWallData, setActiveWallData] = useState(null);
 
   // --- SOCKET LISTENERS ---
-  useEffect(() => {
-    socket.on("room_count_update", (count) => {
-      setCrewCount(count);
-    });
+useEffect(() => {
+  socket.on("room_count_update", (count) => {
+    setCrewCount(count);
+  });
 
-    socket.on("mural_started", (data) => {
-      setActiveWallData((prev) => {
-        if (prev?.wallCode === data.wallCode) {
-          return { 
-            ...prev, 
-            isStarted: true, 
-            expiresAt: data.expiresAt,
-            // Keep existing names, just update state
-          };
-        }
-        return prev;
-      });
+  // Listen for the CORRECT signal from the server
+  socket.on("mission_start_confirmed", (data) => {
+    console.log("Mission Start Received by Artist!");
+    setActiveWallData((prev) => {
+      if (prev) {
+        return { 
+          ...prev, 
+          isStarted: true, 
+          expiresAt: data.finishAt, // Use the timestamp from the server
+        };
+      }
+      return prev;
     });
+  });
 
-    return () => {
-      socket.off("room_count_update");
-      socket.off("mural_started");
-    };
-  }, []);
+  return () => {
+    socket.off("room_count_update");
+    socket.off("mission_start_confirmed");
+  };
+}, []);
 
   // --- HANDLERS ---
   const handleCreateWall = async () => {
@@ -67,7 +68,7 @@ export default function FrontPage() {
           muralName: muralName,
           wallCode: data.wallCode,
           adminCode: data.adminCode, 
-          durationSeconds: Number(duration) * 60,
+          durationSeconds: Number(duration),
           isAdmin: true,
           isStarted: false,
         });
@@ -84,18 +85,17 @@ export default function FrontPage() {
 
   const startMission = () => {
     if (!activeWallData) return;
-    const expiration = Date.now() + activeWallData.durationSeconds * 1000;
+   console.log("Admin is starting mission...");
     
-    socket.emit("start_mural", { 
+    socket.emit("start_mission", { 
       wallCode: activeWallData.wallCode,
       muralName: activeWallData.muralName,
-      expiresAt: expiration 
+     durationSeconds: activeWallData.durationSeconds
     });
 
     setActiveWallData((prev) => ({
       ...prev,
       isStarted: true,
-      expiresAt: expiration,
     }));
   };
 

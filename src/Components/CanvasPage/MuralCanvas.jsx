@@ -10,7 +10,6 @@ export default function MuralCanvas({
   artistName, 
   wallCode, 
   isStarted, 
-  expiresAt,
   socket,
   durationSeconds,  // Make sure this is passed from your wall data
   onExit 
@@ -22,78 +21,65 @@ export default function MuralCanvas({
   const [capType, setCapType] = useState("standard");
   const [bgType, setBgType] = useState("none");
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [timeLeft, setTimeLeft] = useState(() => durationSeconds || 0);
+  const [timeLeft, setTimeLeft] = useState(durationSeconds || 0);
   const [isFinished, setIsFinished] = useState(false);
-  const [endTime, setEndTime] = useState(expiresAt || null);
+  const [endTime, setEndTime] = useState(null);
 
-const formatTime = (seconds) => {
-  // Ensure we are working with a clean number
-  const totalSeconds = Math.max(0, Math.floor(seconds || 0));
 
-  // MATH CHECK: 
-  // If totalSeconds is 300...
-  // mins = 300 / 60 = 5
-  // secs = 300 % 60 = 0
-  const mins = Math.floor(totalSeconds / 60); 
-  const secs = totalSeconds % 60;            
 
-  // This will return "05:00"
+
+  const getTimerDisplay = () => {
+  // Use a local variable to decide which source to trust
+  const totalSeconds = isStarted ? timeLeft : durationSeconds;
+  
+  // Force it to be a number just in case the backend/dropdown sent a string
+  const total = Number(totalSeconds) || 0;
+  
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 
-  // 1. Listen for the Global Start signal from the socket
+// 1. Listen for the Global Start signal
   useEffect(() => {
     if (!socket) return;
 
     const handleStart = (data) => {
-      // finishAt is a timestamp (e.g., Date.now() + 60000)
       console.log("Mural Started Data Received:", data);
-      if (data.expiresAt) {
-        setEndTime(data.expiresAt);
+      // Use the finishAt timestamp from the server
+      if (data.finishAt) {
+        setEndTime(data.finishAt);
       }
     };
+
     socket.on("mission_start_confirmed", handleStart);
-    return () => {
-      socket.off("mission_start_confirmed", handleStart);
-    };
+    return () => socket.off("mission_start_confirmed", handleStart);
   }, [socket]);
 
   // 2. The Synced Ticker
   useEffect(() => {
-    // Only run if the mission started and we have a target end time
     if (!isStarted || !endTime || isFinished) return;
 
     const timer = setInterval(() => {
       const now = Date.now();
+      // Calculate remaining seconds based on the SERVER'S end time
       const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
       
       setTimeLeft(remaining);
 
       if (remaining <= 0) {
         clearInterval(timer);
-        // We use setTimeout to ensure React finishes the current render
-        // before flipping the lock-out switch.
-        setTimeout(() => {
-          setIsFinished(true);
-          console.log("WALL LOCKED: Time is up.");
-        }, 0);
+        setIsFinished(true);
+        console.log("WALL LOCKED: Time is up.");
       }
-    }, 250); // Checking 4 times a second keeps it smooth without taxing the CPU
+    }, 250); // 250ms keeps the UI responsive
 
     return () => clearInterval(timer);
   }, [isStarted, endTime, isFinished]);
-
-
-//   useEffect(() => {
-//   // Only sync duration to timeLeft if the mission hasn't started yet.
-//   // This prevents the timer from jumping back to the start while it's ticking.
-//   if (!isStarted && durationSeconds !== undefined) {
-//     setTimeLeft(durationSeconds);
-//   }
-// }, [durationSeconds, isStarted]);
-
-
+  
+  
   const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
 
   const handleRattle = useCallback(() => {
@@ -129,8 +115,9 @@ const formatTime = (seconds) => {
           crewCount={crewCount}
           onClear={isActive ? clearCanvas : null} // Lock clear button when time is up
           onExit={onExit}
-          timerDisplay={formatTime(timeLeft)} // Pass this to HUD to show the clock
+          timerDisplay={getTimerDisplay()}
           isFinished={isFinished}
+          isExpiring={isStarted && timeLeft <= 10 && timeLeft > 0}
         />
       </div>
 

@@ -3,8 +3,9 @@ import { motion } from "framer-motion";
 
 // 1. Added crewCount to the props list here
 export default function SessionHUD({
-  timerDisplay, 
+  timerDisplay,
   isFinished,
+  isExpiring,
   wallCode,
   muralName,
   artistName,
@@ -12,7 +13,6 @@ export default function SessionHUD({
   onClear,
   onExit,
 }) {
-  console.log("HUD names:", { muralName, artistName });
   return (
     <motion.div
       initial={{ y: -100, opacity: 0 }}
@@ -47,13 +47,22 @@ export default function SessionHUD({
 
       <div className="flex gap-4 pointer-events-auto">
         {/* TIMER */}
-      <div className={`flex flex-col items-center ${isFinished ? 'text-red-600' : 'text-white'}`}>
-        <span className="text-xs font-mono tracking-widest uppercase opacity-50">Remaining</span>
-        <span className={`text-3xl font-black font-mono ${isFinished ? 'animate-pulse' : ''}`}>
-          {timerDisplay}
-        </span>
-      </div> 
-      
+        <div
+          className={`flex flex-col items-center transition-colors duration-300 
+  ${isFinished || isExpiring ? "text-red-600" : "text-white"}`}
+        >
+          <span className="text-xs font-mono tracking-widest uppercase opacity-50">
+            {isFinished ? "Status" : "Remaining"}
+          </span>
+
+          <span
+            className={`text-3xl font-black font-mono 
+    ${isFinished || isExpiring ? "animate-pulse" : ""}`}
+          >
+            {isFinished ? "LOCKED" : timerDisplay}
+          </span>
+        </div>
+
         <button
           onClick={() => {
             console.log("HUD: Clear Triggered");
