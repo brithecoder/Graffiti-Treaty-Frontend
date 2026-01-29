@@ -55,9 +55,9 @@ export default function CreateWall({
             onChange={(e) => setDuration(Number(e.target.value))}
           >
             <option value="60">1 MINUTE</option>
+            <option value="180">3 MINUTES</option>
             <option value="300">5 MINUTES</option>
-            <option value="1800">30 MINUTES</option>
-            <option value="3600">60 MINUTES</option>
+            <option value="600">10 MINUTES</option>
           </select>
         </div>
       </div>

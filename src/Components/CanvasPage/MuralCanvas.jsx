@@ -1,18 +1,19 @@
-import React, { useEffect,useCallback, useRef, useState } from "react";
+import React, { useEffect, useCallback, useRef, useState } from "react";
 import { useMuralEngine } from "../../CustomHooks/useMuralEngine";
-import colors from "../../constants/colors"; 
+import colors from "../../constants/colors";
 import SessionHUD from "./SessionHUD";
 import Toolbelt from "./Toolbelt";
+import MuralReveal from "../../constants/MuralPage/MuralReveal";
 
-export default function MuralCanvas({ 
-  muralName, 
-  crewCount, 
-  artistName, 
-  wallCode, 
-  isStarted, 
+export default function MuralCanvas({
+  muralName,
+  crewCount,
+  artistName,
+  wallCode,
+  isStarted,
   socket,
-  durationSeconds,  // Make sure this is passed from your wall data
-  onExit 
+  durationSeconds, // Make sure this is passed from your wall data
+  onExit,
 }) {
   const renderRef = useRef(null);
   const [activeColor, setActiveColor] = useState(colors[0].hex);
@@ -24,25 +25,45 @@ export default function MuralCanvas({
   const [timeLeft, setTimeLeft] = useState(durationSeconds || 0);
   const [isFinished, setIsFinished] = useState(false);
   const [endTime, setEndTime] = useState(null);
-
-
-
+ const [showReveal, setShowReveal] = useState(false);
+  const engine = useMuralEngine({
+    renderRef,
+    artistName,
+    wallCode,
+    activeColor,
+    brushSize,
+    isEraser,
+    capType,
+    bgType,
+    setMousePos,
+  });
+  const { clearCanvas } = engine;
 
   const getTimerDisplay = () => {
-  // Use a local variable to decide which source to trust
-  const totalSeconds = isStarted ? timeLeft : durationSeconds;
-  
-  // Force it to be a number just in case the backend/dropdown sent a string
-  const total = Number(totalSeconds) || 0;
-  
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
+    // Use a local variable to decide which source to trust
+    const totalSeconds = isStarted ? timeLeft : durationSeconds;
 
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
+    // Force it to be a number just in case the backend/dropdown sent a string
+    const total = Number(totalSeconds) || 0;
 
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
 
-// 1. Listen for the Global Start signal
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+ const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
+
+  const handleRattle = useCallback(() => {
+    if (rattleSound.current) {
+      rattleSound.current.currentTime = 0;
+      rattleSound.current
+        .play()
+        .catch((e) => console.log("Audio play blocked:", e));
+    }
+  }, []);
+
+  const isActive = isStarted && !isFinished;
+  // 1. Listen for the Global Start signal
   useEffect(() => {
     if (!socket) return;
 
@@ -66,7 +87,7 @@ export default function MuralCanvas({
       const now = Date.now();
       // Calculate remaining seconds based on the SERVER'S end time
       const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
-      
+
       setTimeLeft(remaining);
 
       if (remaining <= 0) {
@@ -78,39 +99,29 @@ export default function MuralCanvas({
 
     return () => clearInterval(timer);
   }, [isStarted, endTime, isFinished]);
-  
-  
-  const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
 
-  const handleRattle = useCallback(() => {
-    if (rattleSound.current) {
-      rattleSound.current.currentTime = 0;
-      rattleSound.current.play().catch(e => console.log("Audio play blocked:", e));
-    }
-  }, []);
-
-  const isActive = isStarted && !isFinished;
-
-  const { clearCanvas } = useMuralEngine({
-    renderRef,
-    artistName,
-    wallCode,
-    activeColor,
-    brushSize,
-    isEraser,
-    capType,
-    bgType,
-    setMousePos
+useEffect(() => {
+  socket.on("mission_ended", () => {
+    setIsFinished(true);
+    // Wait 2 seconds for dramatic effect, then show reveal component
+    setTimeout(() => setShowReveal(true), 2000);
   });
+}, [socket]);
 
+if (showReveal) {
+  return <MuralReveal wallCode={wallCode} onExit={onExit} artistName={artistName} />;
+}
+
+ 
+
+  
   return (
     <div className="fixed inset-0 bg-[#050505] flex flex-col z-50 overflow-hidden">
-      
       {/* HUD: Top Bar */}
-      <div className="relative z-[110]"> 
-        <SessionHUD 
-          muralName={muralName} 
-          wallCode={wallCode} 
+      <div className="relative z-[110]">
+        <SessionHUD
+          muralName={muralName}
+          wallCode={wallCode}
           artistName={artistName}
           crewCount={crewCount}
           onClear={isActive ? clearCanvas : null} // Lock clear button when time is up
@@ -123,19 +134,26 @@ export default function MuralCanvas({
 
       {/* THE WALL (Canvas Area) */}
       <div className="flex-1 flex flex-col items-center justify-center relative px-4 pt-24 pb-12">
-        <div className={`relative w-full max-w-5xl aspect-video md:h-[65vh] border-2 border-white/5 bg-[#0a0a0a] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-opacity duration-500
-         ${!isActive ? 'pointer-events-none' : 'pointer-events-auto'}
-          ${isFinished ? 'grayscale-0 contrast-125' : ''}`}>
-          
-          <div ref={renderRef} className="w-full h-full cursor-crosshair" />
-          
-          {/* MISSION OVERLAY */}
+        <div
+          className={`relative w-full max-w-5xl aspect-video md:h-[65vh] border-2 border-white/5 bg-[#0a0a0a] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden transition-opacity duration-500
+         ${!isActive ? "pointer-events-none" : "pointer-events-auto"}
+          ${isFinished ? "grayscale-0 contrast-125" : ""}`}
+        >
+          <div ref={renderRef} className="relative w-full h-full cursor-crosshair z-[60]" />
+
+          {/* MISSION OVERLAY*/}
           {isFinished && (
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-[50] animate-in fade-in duration-1000">
-               <h2 className="text-6xl font-black italic text-white tracking-tighter mb-2">MISSION COMPLETE</h2>
-               <p className="font-mono text-zinc-400 text-sm tracking-[0.3em]">THE WALL IS LOCKED</p>
+              <h2 className="text-6xl font-black italic text-white tracking-tighter mb-2">
+                MISSION COMPLETE
+              </h2>
+              <p className="font-mono text-zinc-400 text-sm tracking-[0.3em]">
+                THE WALL IS LOCKED
+              </p>
             </div>
           )}
+    
+
           {isStarted && (
             <div
               style={{
@@ -144,7 +162,8 @@ export default function MuralCanvas({
                 left: mousePos.x,
                 width: "500px",
                 height: "500px",
-                background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)",
+                background:
+                  "radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)",
                 transform: "translate(-50%, -50%)",
                 pointerEvents: "none",
                 mixBlendMode: "screen",
@@ -159,20 +178,22 @@ export default function MuralCanvas({
           Click and Drag to Tag
         </p>
       </div>
-        
+
       {/* TOOLBELT: Control Panel */}
-      <div className={!isActive ? "opacity-20 pointer-events-none" : "opacity-100"}>
-        <Toolbelt 
+      <div
+        className={!isActive ? "opacity-20 pointer-events-none" : "opacity-100"}
+      >
+        <Toolbelt
           colors={colors}
-          activeColor={activeColor} 
+          activeColor={activeColor}
           setActiveColor={setActiveColor}
-          brushSize={brushSize} 
+          brushSize={brushSize}
           setBrushSize={setBrushSize}
-          capType={capType} 
+          capType={capType}
           setCapType={setCapType}
-          isEraser={isEraser} 
+          isEraser={isEraser}
           setIsEraser={setIsEraser}
-          bgType={bgType} 
+          bgType={bgType}
           setBgType={setBgType}
           onRattle={handleRattle}
         />

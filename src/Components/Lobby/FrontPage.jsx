@@ -8,13 +8,16 @@ import AdminOverlay from "./AdminOverlay";
 import socket from "../../socket";
 
 export default function FrontPage() {
-  const [view, setView] = useState("MENU");
+// FrontPage.jsx
+  const [view, setView] = useState("MENU"); // Back to standard
+  const [activeWallData, setActiveWallData] = useState(null); 
   const [muralName, setMuralName] = useState("");
   const [artistTag, setArtistTag] = useState("");
   const [partySize, setPartySize] = useState(1);
   const [duration, setDuration] = useState(60);
   const [crewCount, setCrewCount] = useState(0);
-  const [activeWallData, setActiveWallData] = useState(null);
+
+
 
   // --- SOCKET LISTENERS ---
 useEffect(() => {
@@ -43,6 +46,7 @@ useEffect(() => {
   };
 }, []);
 
+
   // --- HANDLERS ---
   const handleCreateWall = async () => {
     if (!muralName || !artistTag) return alert("Mural identity required.");
@@ -62,7 +66,10 @@ useEffect(() => {
       const data = await response.json();
 
       if (response.ok) {
-        socket.emit('join_wall', data.wallCode);
+        socket.emit('join_wall',{ 
+  wallCode: data.wallCode, 
+  artistName: data.nickname
+});
         setActiveWallData({
           artistName: artistTag,
           muralName: muralName,
@@ -98,6 +105,25 @@ useEffect(() => {
       isStarted: true,
     }));
   };
+
+  const handleExit = () => {
+ // Only warn if the game is active OR currently revealing
+  // If the game is over and they've seen the reveal, let them leave freely
+  if (activeWallData?.isStarted && !activeWallData?.revealComplete) {
+    const confirmLeave = window.confirm(
+      "The reveal is about to start! If you leave now, you'll miss the final wall. Exit anyway?"
+    );
+    if (!confirmLeave) return;
+  }
+
+  // Clear session and reset
+  localStorage.removeItem("mural_session");
+  localStorage.removeItem(`mural_save_${activeWallData?.wallCode}`); // Clean up the specific canvas save
+  
+  setActiveWallData(null); 
+  setView("MENU");
+  window.location.reload();
+};
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 font-sans">
@@ -200,7 +226,7 @@ useEffect(() => {
        crewCount={crewCount}
       socket={socket}
       durationMinutes={duration}
-        onExit={() => setView("MENU")}
+        onExit={handleExit}
       />
     </div>
 
