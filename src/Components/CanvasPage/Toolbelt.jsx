@@ -17,6 +17,11 @@ export default function Toolbelt({
       transition={{ delay: 0.8, duration: 0.6, ease: "easeOut" }}
       className="fixed bottom-0 left-0 w-full pb-8 pt-2 flex justify-center z-20"
     >
+      <div 
+  className="toolbelt-container"
+  onMouseDown={(e) => e.stopPropagation()}
+  onTouchStart={(e) => e.stopPropagation()}>
+
       <div className="pointer-events-auto bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-3xl md:rounded-full flex flex-wrap md:flex-nowrap items-center justify-center gap-4 md:gap-5 shadow-2xl max-width-[95%] mx-auto">
         
         {/* SURFACE SELECTOR */}
@@ -98,6 +103,7 @@ export default function Toolbelt({
         >
           {isEraser ? "Eraser ON" : "Eraser"}
         </button>
+      </div>
       </div>
     </motion.div>
   );

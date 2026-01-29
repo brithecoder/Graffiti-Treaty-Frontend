@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+.toolbelt-container {
+  /* 1. Ensure it sits on top of the canvas */
+  position: relative; 
+  z-index: 50; 
+
+  /* 2. Explicitly capture mouse events so they don't "bubble" down */
+  pointer-events: auto; 
+
+  /* 3. Prevent text selection while dragging sliders/buttons */
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* 4. Stop touch gestures (scrolling/zooming) while using tools */
+  touch-action: none;
+}
+.canvas-wrapper {
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
+  
+  /* Prevents the 'I-beam' cursor or blue highlights near the edges */
+  cursor: crosshair; 
+}
