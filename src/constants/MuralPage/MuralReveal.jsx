@@ -54,10 +54,11 @@ export default function MuralReveal({ wallCode, artistName }) {
             drawStroke(s);
             currentIndexRef.current++;
           } else if (strokes.length > 0 && currentIndexRef.current >= strokes.length) {
-          if (!isFinished) {
-            setIsFinished(true); 
-            p.noLoop(); // Pause CPU when finished
-          }
+          setIsFinished((prev) => {
+        if (!prev) return true;
+        return prev;
+    });
+    p.noLoop();
         }
         if (pgRef.current) {
           p.image(pgRef.current, 0, 0);
