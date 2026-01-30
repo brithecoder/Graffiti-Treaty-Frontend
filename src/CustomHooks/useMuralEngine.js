@@ -20,6 +20,8 @@ export function useMuralEngine({
   const capRef = useRef(capType);
   const bgRef = useRef(bgType);
   const slotIndexRef = useRef(null);
+
+
   // --- GARBAGE COLLECTION & TIMELAPSE REFS ---
   const strokePointsRef = useRef([]); // Stores coordinates for the current line
   const clearFlag = useRef(false);
@@ -27,6 +29,7 @@ export function useMuralEngine({
   const spraySound = useRef(new Audio("sounds/paintingSound.wav"));
   const boundsRef = useRef({ x: 0, y: 0, w: 0, h: 0 }); // Store bounds in a Ref
   const pgRef = useRef(null); // Store PG in a Ref so return can see it
+
 
   useEffect(() => {
     if (spraySound.current) {
@@ -101,6 +104,8 @@ export function useMuralEngine({
         }
         // --- DRAWING LOGIC ---
         if (p.mouseIsPressed) {
+        const topElement = document.elementFromPoint(p.winMouseX, p.winMouseY);
+       if (topElement && topElement.tagName === 'CANVAS') {
           // RECORDING FOR TIMELAPSE: Add current point to Ref
           // We only record every frame to keep data light
           // --- THINNING DATA (Point Skipper) ---
@@ -109,7 +114,7 @@ export function useMuralEngine({
   const isInside = p.mouseX >= 0 && p.mouseX <= p.width && 
                    p.mouseY >= 0 && p.mouseY <= p.height;
 
-  if (isInside) {
+  if (isInside && p.focused) {
     const pctX = p.mouseX / p.width;
     const pctY = p.mouseY / p.height;
     const lastPt = strokePointsRef.current[strokePointsRef.current.length - 1];
@@ -117,7 +122,7 @@ export function useMuralEngine({
     if (!lastPt || p.dist(lastPt.x * p.width, lastPt.y * p.height, p.mouseX, p.mouseY) > 5) {
        strokePointsRef.current.push({ x: pctX, y: pctY });
     }
-
+  }
           const currentColor = colorRef.current;
           const currentSize = sizeRef.current;
           const isErasing = eraserRef.current;
@@ -146,7 +151,12 @@ export function useMuralEngine({
           if (isErasing) pgRef.current.erase();
           else pgRef.current.noErase();
           pgRef.current.noStroke();
+          const d = p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY);
+          if(d > 100){
 
+             p.pmouseX = p.mouseX;
+          p.pmouseY = p.mouseY; 
+          }else{
           const steps = p.max(
             1,
             p.floor(p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY) / 5),
@@ -183,7 +193,7 @@ export function useMuralEngine({
           }
         }
       }
-
+    }
         // --- DRIP GARBAGE COLLECTION ---
         // We iterate backwards and splice to remove old drips from memory
         for (let i = dripsRef.current.length - 1; i >= 0; i--) {
@@ -230,9 +240,10 @@ export function useMuralEngine({
             }
           }
         }
+      
         pgRef.current.pop();
       };
-
+    
       p.runTimelapse = (allStrokes) => {
         console.log("Timelapse started with", allStrokes.length, "strokes");
         pgRef.current.clear(); // Clear the wall for the reveal

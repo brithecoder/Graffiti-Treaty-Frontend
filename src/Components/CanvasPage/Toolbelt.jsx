@@ -1,26 +1,33 @@
 import React from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-
 export default function Toolbelt({ 
   colors, activeColor, setActiveColor, 
   brushSize, setBrushSize, 
   capType, setCapType, 
   isEraser, setIsEraser,
   bgType, setBgType,
-  onRattle 
+  onRattle
 }) {
+
+  const blockEvents = (e) => {
+    e.stopPropagation();
+    // This is the key for p5 - it stops the "pressed" state from starting
+  };
+
   return (
     <motion.div
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.8, duration: 0.6, ease: "easeOut" }}
       className="fixed bottom-0 left-0 w-full pb-8 pt-2 flex justify-center z-20"
+      onMouseDown={blockEvents}
+      onMouseMove={blockEvents}
+      onMouseUp={blockEvents}
+      onTouchStart={blockEvents}
     >
       <div 
-  className="toolbelt-container"
-  onMouseDown={(e) => e.stopPropagation()}
-  onTouchStart={(e) => e.stopPropagation()}>
+  className="toolbelt-container">
 
       <div className="pointer-events-auto bg-black/80 backdrop-blur-xl border border-white/10 p-4 rounded-3xl md:rounded-full flex flex-wrap md:flex-nowrap items-center justify-center gap-4 md:gap-5 shadow-2xl max-width-[95%] mx-auto">
         
