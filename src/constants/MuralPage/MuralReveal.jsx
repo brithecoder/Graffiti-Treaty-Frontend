@@ -1,31 +1,37 @@
 import React, { useEffect, useRef, useState } from 'react';
 import p5 from 'p5';
 
-export default function MuralReveal({ wallCode, onExit, artistName }) {
+export default function MuralReveal({ wallCode, artistName }) {
   const revealRef = useRef(null);
+  const p5Instance = useRef(null);
+  const pgRef = useRef(null); // Ref for the graphics buffer
+  const currentIndexRef = useRef(0); // Ref for the animation progress
+  const strokesRef = useRef([]); // Ref for the data
+
   const [loading, setLoading] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
-  const [currentArtist, setCurrentArtist] = useState(""); // Track who is drawing right now
+  const [currentArtist, setCurrentArtist] = useState("");
 
   useEffect(() => {
     const sketch = (p) => {
-      let pg;
-      let strokes = [];
-      let currentIndex = 0;
+      p5Instance.current = p;
 
       p.setup = async () => {
         const container = revealRef.current;
         if (!container) return;
-        
+
+        container.innerHTML = '';
         p.createCanvas(container.offsetWidth, container.offsetHeight).parent(container);
-        pg = p.createGraphics(p.width, p.height);
-        pg.clear();
+        
+        // Create the graphics buffer and store in Ref
+        pgRef.current = p.createGraphics(p.width, p.height);
+        pgRef.current.clear();
         
         try {
           const res = await fetch(`http://localhost:3000/api/mural/strokes/${wallCode}`);
           const data = await res.json();
-          // Sort chronologically just in case
-          strokes = data.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          // Sort chronologically
+          strokesRef.current = data.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         } catch (err) {
           console.error("Fetch error:", err);
         } finally {
@@ -36,26 +42,33 @@ export default function MuralReveal({ wallCode, onExit, artistName }) {
       p.draw = () => {
         p.background(10);
         
-        // Replay speed: 3 strokes per frame for that "Time-lapse" feel
-        for (let i = 0; i < 3; i++) {
-          if (strokes.length > 0 && currentIndex < strokes.length) {
-            const s = strokes[currentIndex];
-            // Update the UI with the name of the person who drew this stroke
+        const strokes = strokesRef.current;
+        
+        // Replay speed loop
+        
+          if (strokes.length > 0 && currentIndexRef.current < strokes.length) {
+            const s = strokes[currentIndexRef.current];
+            
             if (s.artistName) setCurrentArtist(s.artistName);
             
             drawStroke(s);
-            currentIndex++;
-          } else if (strokes.length > 0 && currentIndex >= strokes.length) {
+            currentIndexRef.current++;
+          } else if (strokes.length > 0 && currentIndexRef.current >= strokes.length) {
+          if (!isFinished) {
             setIsFinished(true); 
+            p.noLoop(); // Pause CPU when finished
           }
         }
-        p.image(pg, 0, 0);
+        if (pgRef.current) {
+          p.image(pgRef.current, 0, 0);
+        }
       };
 
-     const drawStroke = (stroke) => {
-        if (!stroke.points || stroke.points.length < 2) return;
-        pg.push();
+      const drawStroke = (stroke) => {
+        const pg = pgRef.current;
+        if (!pg || !stroke.points || stroke.points.length === 0) return;
         
+        pg.push();
         if (stroke.color === "#000000" || stroke.color === "eraser") {
             pg.erase();
         } else {
@@ -64,22 +77,21 @@ export default function MuralReveal({ wallCode, onExit, artistName }) {
         }
 
         const particleCount = stroke.capType === "fat" ? 15 : 30;
-        const spread = stroke.capType === "fat" ? (stroke.brushSize || 15) * 1.5 : (stroke.brushSize || 15) * 0.5;
+        const spread = stroke.capType === "fat" ? (stroke.brushSize || 15) * 2.0 : (stroke.brushSize || 15) * 0.8;
 
-        for (let i = 1; i < stroke.points.length; i++) {
-          const p1 = stroke.points[i - 1];
-          const p2 = stroke.points[i];
+        for (let i = 0; i < stroke.points.length; i++) {
+          const p1 = stroke.points[i];
+          const nextPt = stroke.points[i + 1];
+          const p2 = nextPt ? nextPt : p1;
           
-          // --- AUTO-DETECT MATH ---
-          // If p1.x is less than 1, we treat it as percentage (pct * width)
-          // If p1.x is greater than 1, it's old pixel data—we map it from a 1200px base
           const x1 = p1.x <= 1 ? p1.x * p.width : p.map(p1.x, 0, 1200, 0, p.width);
           const y1 = p1.y <= 1 ? p1.y * p.height : p.map(p1.y, 0, 675, 0, p.height);
           const x2 = p2.x <= 1 ? p2.x * p.width : p.map(p2.x, 0, 1200, 0, p.width);
           const y2 = p2.y <= 1 ? p2.y * p.height : p.map(p2.y, 0, 675, 0, p.height);
 
           const dist = p.dist(x1, y1, x2, y2);
-          const steps = p.max(1, p.floor(dist / 2));
+          let steps = p.max(1, p.floor(dist / 4));
+          if (steps > 500) steps = 500;
 
           for (let s = 0; s < steps; s++) {
             const lerpX = p.lerp(x1, x2, s / steps);
@@ -87,60 +99,105 @@ export default function MuralReveal({ wallCode, onExit, artistName }) {
             
             pg.noStroke();
             for (let j = 0; j < particleCount; j++) {
-              const offX = p.randomGaussian(0, spread);
-              const offY = p.randomGaussian(0, spread);
-              pg.ellipse(lerpX + offX, lerpY + offY, p.random(1, 3));
+              const angle = p.random(p.TWO_PI);
+              const r = p.random(spread); 
+              const offX = p.cos(angle) * r;
+              const offY = p.sin(angle) * r;
+              pg.ellipse(lerpX + offX, lerpY + offY, p.random(1, 2.5));
             }
           }
+          if (!nextPt) break;
         }
         pg.noErase();
         pg.pop();
       };
-    }
+    };
+
     const myP5 = new p5(sketch);
     return () => myP5.remove();
   }, [wallCode]);
 
+  // --- BUTTON HANDLERS ---
+  const handleDownload = () => {
+    if (p5Instance.current && isFinished) {
+      p5Instance.current.saveCanvas(`mural-${wallCode}`, 'png');
+    }
+  };
+const handleReplay = () => {
+  // 1. Reset the progress index
+  currentIndexRef.current = 0;
+  
+  // 2. Clear the canvas buffer completely
+  if (pgRef.current) {
+    pgRef.current.clear();
+    // Re-draw the background if you aren't doing it in p.draw
+    pgRef.current.background(10); 
+  }
+
+  // 3. Reset React state so buttons hide while replaying
+  setIsFinished(false);
+
+  // 4. THE FIX: Explicitly restart the p5 engine
+  if (p5Instance.current) {
+    p5Instance.current.loop(); 
+  }
+};
+
+const handleFinalExit = () => {
+  // 1. Clean up local storage so the next user starts fresh
+  localStorage.removeItem("mural_session");
+  localStorage.removeItem(`mural_save_${wallCode}`);
+
+  // 2. The "Nuke" option: This kills the p5 instance, sockets, 
+  // and React state instantly and takes them back to the splash page.
+  window.location.href = "/"; 
+};
+  
+
   return (
     <div className="fixed inset-0 bg-zinc-950 z-[200] flex flex-col items-center justify-center p-4">
+      {/* HEADER SECTION */}
       <div className="text-center mb-6">
-        <h2 className="text-yellow-400 italic font-black text-6xl mb-2 tracking-tighter">
-          THE REVEAL
-        </h2>
-        
-        {/* Dynamic Tagger Name */}
+        <h2 className="text-treaty-neon italic font-black text-6xl mb-2 tracking-tighter">THE REVEAL</h2>
         <div className="h-6">
-            <p className="text-zinc-400 font-mono text-xs uppercase tracking-[0.3em]">
-                {currentArtist ? (
-                    <>Currently Tagging: <span className="text-white font-bold">{artistName}</span></>
-                ) : (
-                    <>Wall: <span className="text-white">{wallCode}</span></>
-                )}
-            </p>
+          <p className="text-zinc-400 font-mono text-xs uppercase tracking-[0.3em]">
+            {currentArtist ? (
+              <>
+                <span>Currently Tagging: <span className="text-white font-bold">{currentArtist || artistName}</span></span>
+                <span className="text-zinc-600 mx-3">|</span>
+                <span>Wall: <span className="text-yellow-400/80">{wallCode}</span></span>
+              </>
+            ) : (
+              <>Wall: <span className="text-white">{wallCode}</span></>
+            )}
+          </p>
         </div>
       </div>
 
-      <div className="relative w-full max-w-5xl aspect-video group">
+      {/* CANVAS CONTAINER */}
+      <div className="relative w-full max-w-5xl aspect-video">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
             <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-        
-        <div 
-          ref={revealRef} 
-          className="w-full h-full border-8 border-white/5 shadow-2xl bg-black rounded-sm" 
-        />
+        <div ref={revealRef} className="w-full h-full border-8 border-white/5 shadow-2xl bg-black" />
       </div>
 
-      <button 
-        onClick={onExit} 
-        className={`mt-10 px-12 py-4 bg-yellow-400 text-black font-black uppercase italic transition-all duration-700 hover:scale-110 active:scale-95 ${
-          isFinished ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"
-        }`}
-      >
-        Close Gallery
-      </button>
+      {/* ACTION BUTTONS */}
+      {isFinished && (
+        <div className="mt-8 flex gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <button onClick={handleReplay} className="px-6 py-3 bg-[#ff007f] text-white font-bold uppercase tracking-tighter hover:bg-zinc-700 transition-all flex items-center gap-2">
+            ↺ Replay
+          </button>
+          <button onClick={handleDownload} className="px-8 py-3 bg-treaty-neon text-black font-black uppercase italic hover:scale-105 transition-all shadow-lg">
+            Download Piece
+          </button>
+          <button onClick={handleFinalExit} className="px-6 py-3 bg-white text-black font-bold uppercase tracking-tighter hover:bg-red-500 hover:text-white transition-all">
+           Finish Mission
+          </button>
+        </div>
+      )}
     </div>
   );
 }

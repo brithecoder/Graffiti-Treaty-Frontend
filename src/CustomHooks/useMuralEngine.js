@@ -84,6 +84,7 @@ export function useMuralEngine({
       };
 
       p.draw = () => {
+        if (!p.isLooping()) return; 
         // Draw Background
         if (bgRef.current !== "none" && textures[bgRef.current]) {
           p.image(textures[bgRef.current], 0, 0, p.width, p.height);
@@ -154,7 +155,7 @@ export function useMuralEngine({
           const d = p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY);
           if(d > 100){
 
-             p.pmouseX = p.mouseX;
+          p.pmouseX = p.mouseX;
           p.pmouseY = p.mouseY; 
           }else{
           const steps = p.max(
@@ -209,58 +210,117 @@ export function useMuralEngine({
         p.image(pgRef.current, 0, 0);
       };
 
-      const renderStaticStroke = (stroke) => {
-        if (!stroke.points || stroke.points.length < 2) return;
-        pgRef.current.push();
-        let particleCount = stroke.capType === "fat" ? 12 : 35;
-        let spread =
-          stroke.capType === "fat"
-            ? (stroke.brushSize || 15) * 2.2
-            : stroke.brushSize || 15;
+      // const renderStaticStroke = (stroke) => {
+      //   if (!stroke.points || stroke.points.length === 0 )return;
+    
+      //   pgRef.current.push();
+      //  pgRef.current.noStroke();
+      //   pgRef.current.fill(stroke.color);
+      //   let particleCount = stroke.capType === "fat" ? 12 : 35;
+      //   let spread =  stroke.capType === "fat"
+      //       ? (stroke.brushSize || 15) * 2.2
+      //       : stroke.brushSize || 15;
 
-        for (let i = 1; i < stroke.points.length; i++) {
-          const p1 = stroke.points[i - 1];
-          const p2 = stroke.points[i];
+      //   for (let i = 0; i < stroke.points.length; i++) {
+      //     const p1 = stroke.points[i - 1];
+      //     const p2 = stroke.points[i];
 
-          // Draw the spray particles for each segment
+      //     // Draw the spray particles for each segment
 
-          const steps = p.max(1, p.floor(p.dist(p1.x, p1.y, p2.x, p2.y) / 5));
-          for (let s = 0; s < steps; s++) {
-            const lerpX = p.lerp(p1.x, p2.x, s / steps);
-            const lerpY = p.lerp(p1.y, p2.y, s / steps);
-            pgRef.current.fill(stroke.color);
-            pgRef.current.noStroke();
+      //     const steps = p.max(1, p.floor(p.dist(p1.x, p1.y, p2.x, p2.y) / 5));
+      //     for (let s = 0; s < steps; s++) {
+      //       const lerpX = p.lerp(p1.x, p2.x, s / steps);
+      //       const lerpY = p.lerp(p1.y, p2.y, s / steps);
+      //       pgRef.current.fill(stroke.color);
+      //       pgRef.current.noStroke();
 
-            for (let j = 0; j < particleCount; j++) {
-              pgRef.current.ellipse(
-                lerpX + p.randomGaussian(0, spread),
-                lerpY + p.randomGaussian(0, spread),
-                p.random(1, 3),
-              );
-            }
-          }
-        }
+      //       for (let j = 0; j < particleCount; j++) {
+      //         pgRef.current.ellipse(
+      //           lerpX + p.random(-spread, spread),
+      //           lerpY + p.random(-spread, spread),
+      //           p.random(1, 3),
+      //         );
+      //       }
+      //     }
+      //   }
       
-        pgRef.current.pop();
-      };
+      //   pgRef.current.pop();
+      // };
+      const renderStaticStroke = (stroke) => {
+  if (!stroke.points || stroke.points.length === 0) return;
+
+  pgRef.current.push();
+  pgRef.current.noStroke();
+  pgRef.current.fill(stroke.color);
+
+  const isFat = stroke.capType === "fat";
+  const particleCount = isFat ? 12 : 35;
+  const spread = (stroke.brushSize || 15) * (isFat ? 2.2 : 1);
+
+  // We start at i=0 so even a single-point stroke gets processed
+  for (let i = 0; i < stroke.points.length; i++) {
+    // 1. Scale percentage to current pixels
+    const p1 = { 
+      x: stroke.points[i].x * p.width, 
+      y: stroke.points[i].y * p.height 
+    };
+    
+    // 2. Get the next point, or just use p1 again if it's a dot
+    const nextPt = stroke.points[i + 1];
+    const p2 = nextPt 
+      ? { x: nextPt.x * p.width, y: nextPt.y * p.height } 
+      : p1;
+
+    const d = p.dist(p1.x, p1.y, p2.x, p2.y);
+    
+    // 3. Even if distance is 0 (a dot), we do 1 step
+    const steps = p.max(1, p.floor(d / 5));
+
+    for (let s = 0; s < steps; s++) {
+      const lerpX = p.lerp(p1.x, p2.x, s / steps);
+      const lerpY = p.lerp(p1.y, p2.y, s / steps);
+
+      for (let j = 0; j < particleCount; j++) {
+        pgRef.current.ellipse(
+          lerpX + p.random(-spread, spread),
+          lerpY + p.random(-spread, spread),
+          p.random(1, 3)
+        );
+      }
+    }
+    
+    // If it was just a dot, we're done after one iteration
+    if (!nextPt) break;
+  }
+  pgRef.current.pop();
+};
     
       p.runTimelapse = (allStrokes) => {
+        p.noLoop();
         console.log("Timelapse started with", allStrokes.length, "strokes");
         pgRef.current.clear(); // Clear the wall for the reveal
         dripsRef.current = [];
         let i = 0;
-        p.loop();
         const interval = setInterval(() => {
           if (i >= allStrokes.length) {
             clearInterval(interval);
             console.log("Timelapse finished");
-            p.noLoop();
+            p.loop();
             return;
           }
-          renderStaticStroke(allStrokes[i]);
+          const stroke = allStrokes[i];
+    const scaledStroke = {
+      ...stroke,
+      points: stroke.points.map(pt => ({
+        x: pt.x * p.width,
+        y: pt.y * p.height
+      }))
+    };
+    renderStaticStroke(scaledStroke);
+    p.background(10, 10, 10); 
           p.image(pgRef.current, 0, 0);
           i++;
-        }, 40); // 40ms speed
+        }, 160); // 160ms speed
       };
       p.mousePressed = () => {
         if (
