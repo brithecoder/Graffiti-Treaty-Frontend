@@ -5,6 +5,7 @@ import JoinRoom from "./JoinRoom";
 import MuralCanvas from "../CanvasPage/MuralCanvas";
 import CreateWall from "./CreateWall";
 import AdminOverlay from "./AdminOverlay";
+import InfoModal from './InfoModal'; 
 import socket from "../../socket";
 
 export default function FrontPage() {
@@ -16,6 +17,7 @@ export default function FrontPage() {
   const [partySize, setPartySize] = useState(1);
   const [duration, setDuration] = useState(60);
   const [crewCount, setCrewCount] = useState(0);
+  const [infoOpen, setInfoOpen] = useState(false);
 
 
 
@@ -149,6 +151,17 @@ useEffect(() => {
               <span className="text-treaty-neon"> TREATY</span>
             </motion.span>
           </motion.h1>
+          <div>
+    {/* Your existing UI */}
+    <button 
+      onClick={() => setInfoOpen(true)}
+      className="fixed top-6 right-6 text-zinc-500 font-mono text-xs hover:text-[#39ff14] transition-colors border border-zinc-800 px-3 py-1 uppercase tracking-tighter"
+    >
+      [ Intelligence ]
+    </button>
+
+    <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
+  </div>
 
           <motion.p
             initial={{ opacity: 0 }}
