@@ -65,55 +65,68 @@ export default function MuralReveal({ wallCode, artistName }) {
         }
       };
 
-      const drawStroke = (stroke) => {
-        const pg = pgRef.current;
-        if (!pg || !stroke.points || stroke.points.length === 0) return;
-        
-        pg.push();
-        if (stroke.color === "#000000" || stroke.color === "eraser") {
-            pg.erase();
-        } else {
-            pg.noErase();
-            pg.fill(stroke.color || "#FFFFFF");
-        }
+     const drawStroke = (stroke) => {
+  const pg = pgRef.current;
+  if (!pg || !stroke.points || stroke.points.length === 0) return;
+  
+  pg.push();
+  pg.noStroke(); // <--- FIX 1: This stops the green "connector" lines
 
-        const particleCount = stroke.capType === "fat" ? 15 : 30;
-        const spread = stroke.capType === "fat" ? (stroke.brushSize || 15) * 2.0 : (stroke.brushSize || 15) * 0.8;
+  if (stroke.color === "#000000" || stroke.color === "eraser") {
+    pg.erase();
+  } else {
+    pg.noErase();
+    pg.fill(stroke.color || "#FFFFFF");
+  }
 
-        for (let i = 0; i < stroke.points.length; i++) {
-          const p1 = stroke.points[i];
-          const nextPt = stroke.points[i + 1];
-          const p2 = nextPt ? nextPt : p1;
-          
-          const x1 = p1.x <= 1 ? p1.x * p.width : p.map(p1.x, 0, 1200, 0, p.width);
-          const y1 = p1.y <= 1 ? p1.y * p.height : p.map(p1.y, 0, 675, 0, p.height);
-          const x2 = p2.x <= 1 ? p2.x * p.width : p.map(p2.x, 0, 1200, 0, p.width);
-          const y2 = p2.y <= 1 ? p2.y * p.height : p.map(p2.y, 0, 675, 0, p.height);
+  const brushSize = stroke.brushSize || 15;
+  const isFat = stroke.capType === "fat";
+  const particleCount = isFat ? 15 : 30;
+  const spread = isFat ? brushSize * 2.2 : brushSize * 0.8;
 
-          const dist = p.dist(x1, y1, x2, y2);
-          let steps = p.max(1, p.floor(dist / 4));
-          if (steps > 500) steps = 500;
+  for (let i = 0; i < stroke.points.length; i++) {
+    const p1 = stroke.points[i];
+    const nextPt = stroke.points[i + 1];
+    
+    // FIX 2: Better coordinate detection
+    const getX = (val) => val <= 1 ? val * p.width : p.map(val, 0, 1200, 0, p.width);
+    const getY = (val) => val <= 1 ? val * p.height : p.map(val, 0, 675, 0, p.height);
 
-          for (let s = 0; s < steps; s++) {
-            const lerpX = p.lerp(x1, x2, s / steps);
-            const lerpY = p.lerp(y1, y2, s / steps);
-            
-            pg.noStroke();
-            for (let j = 0; j < particleCount; j++) {
-              const angle = p.random(p.TWO_PI);
-              const r = p.random(spread); 
-              const offX = p.cos(angle) * r;
-              const offY = p.sin(angle) * r;
-              pg.ellipse(lerpX + offX, lerpY + offY, p.random(1, 2.5));
-            }
-          }
-          if (!nextPt) break;
-        }
-        pg.noErase();
-        pg.pop();
-      };
+    const x1 = getX(p1.x);
+    const y1 = getY(p1.y);
+
+    // If there is no next point, just draw a "splat" at the current point
+    if (!nextPt) {
+      for (let j = 0; j < particleCount; j++) {
+        const angle = p.random(p.TWO_PI);
+        const r = p.random(spread); 
+        pg.ellipse(x1 + p.cos(angle) * r, y1 + p.sin(angle) * r, p.random(1, 2.5));
+      }
+      break;
+    }
+
+    const x2 = getX(nextPt.x);
+    const y2 = getY(nextPt.y);
+
+    const dist = p.dist(x1, y1, x2, y2);
+    let steps = p.max(1, p.floor(dist / 4));
+    if (steps > 500) steps = 500;
+
+    for (let s = 0; s < steps; s++) {
+      const lerpX = p.lerp(x1, x2, s / steps);
+      const lerpY = p.lerp(y1, y2, s / steps);
+      
+      for (let j = 0; j < particleCount; j++) {
+        const angle = p.random(p.TWO_PI);
+        const r = p.random(spread); 
+        pg.ellipse(lerpX + p.cos(angle) * r, lerpY + p.sin(angle) * r, p.random(1, 2.5));
+      }
+    }
+  }
+  pg.noErase();
+  pg.pop();
+};
     };
-
     const myP5 = new p5(sketch);
     return () => myP5.remove();
   }, [wallCode]);

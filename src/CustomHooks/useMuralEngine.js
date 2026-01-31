@@ -12,6 +12,7 @@ export function useMuralEngine({
   capType,
   bgType,
   setMousePos,
+  setisFinished,
 }) {
   const p5Instance = useRef(null);
   const colorRef = useRef(activeColor);
@@ -20,6 +21,7 @@ export function useMuralEngine({
   const capRef = useRef(capType);
   const bgRef = useRef(bgType);
   const slotIndexRef = useRef(null);
+
 
 
   // --- GARBAGE COLLECTION & TIMELAPSE REFS ---
@@ -210,42 +212,6 @@ export function useMuralEngine({
         p.image(pgRef.current, 0, 0);
       };
 
-      // const renderStaticStroke = (stroke) => {
-      //   if (!stroke.points || stroke.points.length === 0 )return;
-    
-      //   pgRef.current.push();
-      //  pgRef.current.noStroke();
-      //   pgRef.current.fill(stroke.color);
-      //   let particleCount = stroke.capType === "fat" ? 12 : 35;
-      //   let spread =  stroke.capType === "fat"
-      //       ? (stroke.brushSize || 15) * 2.2
-      //       : stroke.brushSize || 15;
-
-      //   for (let i = 0; i < stroke.points.length; i++) {
-      //     const p1 = stroke.points[i - 1];
-      //     const p2 = stroke.points[i];
-
-      //     // Draw the spray particles for each segment
-
-      //     const steps = p.max(1, p.floor(p.dist(p1.x, p1.y, p2.x, p2.y) / 5));
-      //     for (let s = 0; s < steps; s++) {
-      //       const lerpX = p.lerp(p1.x, p2.x, s / steps);
-      //       const lerpY = p.lerp(p1.y, p2.y, s / steps);
-      //       pgRef.current.fill(stroke.color);
-      //       pgRef.current.noStroke();
-
-      //       for (let j = 0; j < particleCount; j++) {
-      //         pgRef.current.ellipse(
-      //           lerpX + p.random(-spread, spread),
-      //           lerpY + p.random(-spread, spread),
-      //           p.random(1, 3),
-      //         );
-      //       }
-      //     }
-      //   }
-      
-      //   pgRef.current.pop();
-      // };
       const renderStaticStroke = (stroke) => {
   if (!stroke.points || stroke.points.length === 0) return;
 
@@ -301,26 +267,29 @@ export function useMuralEngine({
         pgRef.current.clear(); // Clear the wall for the reveal
         dripsRef.current = [];
         let i = 0;
+        const totalDuration = 5000; // 5 seconds in milliseconds
+        const strokeDelay = allStrokes.length > 0 ? totalDuration / allStrokes.length : 160;
         const interval = setInterval(() => {
           if (i >= allStrokes.length) {
             clearInterval(interval);
             console.log("Timelapse finished");
+            setisFinished(true)
             p.loop();
             return;
           }
           const stroke = allStrokes[i];
-    const scaledStroke = {
-      ...stroke,
-      points: stroke.points.map(pt => ({
-        x: pt.x * p.width,
-        y: pt.y * p.height
-      }))
-    };
-    renderStaticStroke(scaledStroke);
+    // const scaledStroke = {
+    //   ...stroke,
+    //   points: stroke.points.map(pt => ({
+    //     x: pt.x * p.width,
+    //     y: pt.y * p.height
+    //   }))
+    // };
+    renderStaticStroke(stroke);
     p.background(10, 10, 10); 
           p.image(pgRef.current, 0, 0);
           i++;
-        }, 160); // 160ms speed
+        }, strokeDelay); // 160ms speed
       };
       p.mousePressed = () => {
         if (
@@ -430,7 +399,6 @@ export function useMuralEngine({
     clearCanvas: () => {
       // 1. Tell the backend to wipe your strokes
       socket.emit("clear_quadrant", { wallCode, artistName });
-
       // 2. Access the refs
       const pg = pgRef.current;
       if (pg) {
