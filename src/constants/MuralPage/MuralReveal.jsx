@@ -64,13 +64,17 @@ export default function MuralReveal({ wallCode, artistName }) {
           p.image(pgRef.current, 0, 0);
         }
       };
-
-     const drawStroke = (stroke) => {
+const drawStroke = (stroke) => {
   const pg = pgRef.current;
   if (!pg || !stroke.points || stroke.points.length === 0) return;
-  
+
+  // --- HELPER FUNCTIONS ---
+  // This ensures points recorded as 0.5 (percent) or 600 (pixels) both land in the right spot
+  const getX = (val) => (val <= 1 ? val * p.width : p.map(val, 0, 1200, 0, p.width));
+  const getY = (val) => (val <= 1 ? val * p.height : p.map(val, 0, 675, 0, p.height));
+
   pg.push();
-  pg.noStroke(); // <--- FIX 1: This stops the green "connector" lines
+  pg.noStroke();
 
   if (stroke.color === "#000000" || stroke.color === "eraser") {
     pg.erase();
@@ -87,19 +91,16 @@ export default function MuralReveal({ wallCode, artistName }) {
   for (let i = 0; i < stroke.points.length; i++) {
     const p1 = stroke.points[i];
     const nextPt = stroke.points[i + 1];
-    
-    // FIX 2: Better coordinate detection
-    const getX = (val) => val <= 1 ? val * p.width : p.map(val, 0, 1200, 0, p.width);
-    const getY = (val) => val <= 1 ? val * p.height : p.map(val, 0, 675, 0, p.height);
 
+    // Apply the helpers here
     const x1 = getX(p1.x);
     const y1 = getY(p1.y);
 
-    // If there is no next point, just draw a "splat" at the current point
     if (!nextPt) {
+      // Single point splat (for dots/clicks)
       for (let j = 0; j < particleCount; j++) {
         const angle = p.random(p.TWO_PI);
-        const r = p.random(spread); 
+        const r = p.random(spread);
         pg.ellipse(x1 + p.cos(angle) * r, y1 + p.sin(angle) * r, p.random(1, 2.5));
       }
       break;
@@ -109,16 +110,20 @@ export default function MuralReveal({ wallCode, artistName }) {
     const y2 = getY(nextPt.y);
 
     const dist = p.dist(x1, y1, x2, y2);
+    
+    // THE SCRATCH FIX: If the distance is too large (like a teleport), 
+    // don't draw a line, just skip to the next point.
+    if (dist > 100) continue; 
+
     let steps = p.max(1, p.floor(dist / 4));
     if (steps > 500) steps = 500;
 
     for (let s = 0; s < steps; s++) {
       const lerpX = p.lerp(x1, x2, s / steps);
       const lerpY = p.lerp(y1, y2, s / steps);
-      
       for (let j = 0; j < particleCount; j++) {
         const angle = p.random(p.TWO_PI);
-        const r = p.random(spread); 
+        const r = p.random(spread);
         pg.ellipse(lerpX + p.cos(angle) * r, lerpY + p.sin(angle) * r, p.random(1, 2.5));
       }
     }
@@ -187,17 +192,16 @@ const handleFinalExit = () => {
           </p>
         </div>
       </div>
-
+ 
       {/* CANVAS CONTAINER */}
-      <div className="relative w-full max-w-5xl aspect-video">
+       <div className="relative w-full max-w-5xl aspect-video">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
             <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
         <div ref={revealRef} className="w-full h-full border-8 border-white/5 shadow-2xl bg-black" />
-      </div>
-
+      </div> 
       {/* ACTION BUTTONS */}
       {isFinished && (
         <div className="mt-8 flex gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">

@@ -113,6 +113,8 @@ export function useMuralEngine({
           // We only record every frame to keep data light
           // --- THINNING DATA (Point Skipper) ---
           // --- THINNING DATA (Point Skipper) ---
+          p.pmouseX = p.mouseX;
+          p.pmouseY = p.mouseY;
         // Check if mouse is actually inside the canvas boundaries
   const isInside = p.mouseX >= 0 && p.mouseX <= p.width && 
                    p.mouseY >= 0 && p.mouseY <= p.height;
@@ -121,8 +123,8 @@ export function useMuralEngine({
     const pctX = p.mouseX / p.width;
     const pctY = p.mouseY / p.height;
     const lastPt = strokePointsRef.current[strokePointsRef.current.length - 1];
-    
-    if (!lastPt || p.dist(lastPt.x * p.width, lastPt.y * p.height, p.mouseX, p.mouseY) > 5) {
+    // strokePointsRef.current.push({ x: pctX, y: pctY });
+    if (!lastPt || p.dist(lastPt.x * p.width, lastPt.y * p.height, p.mouseX, p.mouseY) > 1) {
        strokePointsRef.current.push({ x: pctX, y: pctY });
     }
   }
