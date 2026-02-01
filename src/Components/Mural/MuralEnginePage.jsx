@@ -44,7 +44,7 @@ export default function MuralEnginePage() {
   };
 
   const handleFinish = () => {
-    navigate(`/reveal/${wallCode}`);
+    navigate(`/reveal/${wallCode}`, { state: { artistName } });
   };
 
   return (

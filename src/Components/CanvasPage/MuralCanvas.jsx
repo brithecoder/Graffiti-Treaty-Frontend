@@ -62,17 +62,19 @@ useEffect(() => {
 
   const handleCrewUpdate = (count) => {
     console.log("Artists in room:", count);
-    // This updates the local state, which triggers a re-render of the HUD
-      setCurrentCrewCount(Number(count));
+    setCurrentCrewCount(Number(count));
   };
 
-  // Ensure your backend is emitting 'crew_update' or similar
-  socket.on("room_data", handleCrewUpdate);
+  // 1. Change 'room_data' to 'room_count_update' to match the backend
+  socket.on("room_count_update", handleCrewUpdate);
+
+  // 2. Ask the server for the current count immediately (for late joiners)
+  socket.emit("request_room_update", { wallCode });
 
   return () => {
-    socket.off("room_data", handleCrewUpdate);
+    socket.off("room_count_update", handleCrewUpdate);
   };
-}, [socket]);
+}, [socket, wallCode]); // Added wallCode to dependencies
 
  const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
 
