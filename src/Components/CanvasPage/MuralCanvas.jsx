@@ -3,17 +3,20 @@ import { useMuralEngine } from "../../CustomHooks/useMuralEngine";
 import colors from "../../constants/colors";
 import SessionHUD from "./SessionHUD";
 import Toolbelt from "./Toolbelt";
-import MuralReveal from "../../constants/MuralPage/MuralReveal";
+import MuralReveal from '../Mural/MuralReveal'
+import AdminOverlay from '../Lobby/AdminOverlay'
 
 export default function MuralCanvas({
   muralName,
   crewCount,
   artistName,
   wallCode,
-  isStarted,
+  isStarted: propIsStarted,
   socket,
   durationSeconds, // Make sure this is passed from your wall data
   onExit,
+  onFinish,
+  isAdmin,
 }) {
   const renderRef = useRef(null);
   const [activeColor, setActiveColor] = useState(colors[0].hex);
@@ -25,7 +28,10 @@ export default function MuralCanvas({
   const [timeLeft, setTimeLeft] = useState(durationSeconds || 0);
   const [isFinished, setIsFinished] = useState(false);
   const [endTime, setEndTime] = useState(null);
- const [showReveal, setShowReveal] = useState(false);
+  const [started, setStarted] = useState(propIsStarted || false);
+  const [currentCrewCount, setCurrentCrewCount] = useState(crewCount || 0);
+
+
   const engine = useMuralEngine({
     renderRef,
     artistName,
@@ -40,17 +46,34 @@ export default function MuralCanvas({
   const { clearCanvas } = engine;
 
   const getTimerDisplay = () => {
-    // Use a local variable to decide which source to trust
-    const totalSeconds = isStarted ? timeLeft : durationSeconds;
-
-    // Force it to be a number just in case the backend/dropdown sent a string
-    const total = Number(totalSeconds) || 0;
-
-    const mins = Math.floor(total / 60);
-    const secs = total % 60;
+    // If we haven't started, trust the prop (which the server/admin provides)
+    // If we have started, trust the local ticker state (timeLeft)
+    const total = started ? Number(timeLeft) : Number(durationSeconds);
+    
+    const validTotal = isNaN(total) ? 0 : total;
+    const mins = Math.floor(validTotal / 60);
+    const secs = validTotal % 60;
 
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
+
+useEffect(() => {
+  if (!socket) return;
+
+  const handleCrewUpdate = (count) => {
+    console.log("Artists in room:", count);
+    // This updates the local state, which triggers a re-render of the HUD
+      setCurrentCrewCount(Number(count));
+  };
+
+  // Ensure your backend is emitting 'crew_update' or similar
+  socket.on("room_data", handleCrewUpdate);
+
+  return () => {
+    socket.off("room_data", handleCrewUpdate);
+  };
+}, [socket]);
+
  const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
 
   const handleRattle = useCallback(() => {
@@ -62,7 +85,7 @@ export default function MuralCanvas({
     }
   }, []);
 
-  const isActive = isStarted && !isFinished;
+  const isActive = started && !isFinished;
   // 1. Listen for the Global Start signal
   useEffect(() => {
     if (!socket) return;
@@ -70,18 +93,18 @@ export default function MuralCanvas({
     const handleStart = (data) => {
       console.log("Mural Started Data Received:", data);
       // Use the finishAt timestamp from the server
+      setStarted(true);
       if (data.finishAt) {
         setEndTime(data.finishAt);
       }
     };
-
     socket.on("mission_start_confirmed", handleStart);
     return () => socket.off("mission_start_confirmed", handleStart);
   }, [socket]);
 
   // 2. The Synced Ticker
   useEffect(() => {
-    if (!isStarted || !endTime || isFinished) return;
+    if (!started || !endTime || isFinished) return;
 
     const timer = setInterval(() => {
       const now = Date.now();
@@ -98,22 +121,43 @@ export default function MuralCanvas({
     }, 250); // 250ms keeps the UI responsive
 
     return () => clearInterval(timer);
-  }, [isStarted, endTime, isFinished]);
+  }, [started, endTime, isFinished]);
+
+
 
 useEffect(() => {
+  if (!socket) return;
+
   socket.on("mission_ended", () => {
     setIsFinished(true);
-    // Wait 2 seconds for dramatic effect, then show reveal component
-    setTimeout(() => setShowReveal(true), 2000);
+    console.log("Mission ended signal received.");
+
+    // 1. Wait 2 seconds for dramatic effect 
+    // 2. Then trigger the navigation to the Reveal page
+    setTimeout(() => {
+      if (onFinish) {
+        onFinish(); // This calls navigate(`/reveal/${wallCode}`) in your wrapper!
+      }
+    }, 2000);
   });
-}, [socket]);
 
-if (showReveal) {
-  return <MuralReveal wallCode={wallCode} onExit={onExit} artistName={artistName} />;
-}
+  return () => socket.off("mission_ended");
+}, [socket, onFinish]);
 
- 
 
+
+const startMission = () => {
+    if (!socket) return;
+    
+    console.log("Admin is starting mission...");
+    
+    // Tell the server to start the countdown for everyone in the room
+    socket.emit("start_mission", {
+      wallCode: wallCode,
+      muralName: muralName,
+      durationSeconds: durationSeconds, // This uses the prop you already have
+    });
+  }
   
   return (
     <div className="fixed inset-0 bg-[#050505] flex flex-col z-50 overflow-hidden">
@@ -123,12 +167,12 @@ if (showReveal) {
           muralName={muralName}
           wallCode={wallCode}
           artistName={artistName}
-          crewCount={crewCount}
+          crewCount={currentCrewCount}
           onClear={isActive ? clearCanvas : null} // Lock clear button when time is up
           onExit={onExit}
           timerDisplay={getTimerDisplay()}
           isFinished={isFinished}
-          isExpiring={isStarted && timeLeft <= 10 && timeLeft > 0}
+          isExpiring={started && timeLeft <= 10 && timeLeft > 0}
         />
       </div>
 
@@ -152,9 +196,20 @@ if (showReveal) {
               </p>
             </div>
           )}
+          {/* 5. ADD ADMIN OVERLAY (Waiting for start) */}
+          {!started && (
+            <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-md pointer-events-auto">
+              <AdminOverlay
+                wallCode={wallCode}
+                isAdmin={isAdmin}
+                crewCount={crewCount}
+                onStart={startMission}
+              />
+            </div>
+          )}
     
 
-          {isStarted && (
+          {started && (
             <div
               style={{
                 position: "absolute",

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import p5 from 'p5';
 
-export default function MuralReveal({ wallCode, artistName }) {
+export default function MuralReveal({ artistName }) {
   const revealRef = useRef(null);
   const p5Instance = useRef(null);
   const pgRef = useRef(null); // Ref for the graphics buffer
@@ -12,11 +13,15 @@ export default function MuralReveal({ wallCode, artistName }) {
   const [isFinished, setIsFinished] = useState(false);
   const [currentArtist, setCurrentArtist] = useState("");
 
+const { wallCode } = useParams();
+
+
   useEffect(() => {
     const sketch = (p) => {
       p5Instance.current = p;
 
       p.setup = async () => {
+        currentIndexRef.current = 0;
         const container = revealRef.current;
         if (!container) return;
 
@@ -44,6 +49,11 @@ export default function MuralReveal({ wallCode, artistName }) {
         
         const strokes = strokesRef.current;
         
+        if (strokes.length === 0 && !loading) {
+     p.fill(255);
+     p.text("No strokes found for this wall.", 20, 20);
+  }
+
         // Replay speed loop
         
           if (strokes.length > 0 && currentIndexRef.current < strokes.length) {
