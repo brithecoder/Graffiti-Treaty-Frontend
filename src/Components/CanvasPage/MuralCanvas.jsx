@@ -3,8 +3,8 @@ import { useMuralEngine } from "../../CustomHooks/useMuralEngine";
 import colors from "../../constants/colors";
 import SessionHUD from "./SessionHUD";
 import Toolbelt from "./Toolbelt";
-import MuralReveal from '../Mural/MuralReveal'
-import AdminOverlay from '../Lobby/AdminOverlay'
+import MuralReveal from "../Mural/MuralReveal";
+import AdminOverlay from "../Lobby/AdminOverlay";
 
 export default function MuralCanvas({
   muralName,
@@ -30,7 +30,7 @@ export default function MuralCanvas({
   const [endTime, setEndTime] = useState(null);
   const [started, setStarted] = useState(propIsStarted || false);
   const [currentCrewCount, setCurrentCrewCount] = useState(crewCount || 0);
-
+  const [isSpectator, setIsSpectator] = useState(false);
 
   const engine = useMuralEngine({
     renderRef,
@@ -49,7 +49,7 @@ export default function MuralCanvas({
     // If we haven't started, trust the prop (which the server/admin provides)
     // If we have started, trust the local ticker state (timeLeft)
     const total = started ? Number(timeLeft) : Number(durationSeconds);
-    
+
     const validTotal = isNaN(total) ? 0 : total;
     const mins = Math.floor(validTotal / 60);
     const secs = validTotal % 60;
@@ -57,26 +57,66 @@ export default function MuralCanvas({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-useEffect(() => {
-  if (!socket) return;
 
-  const handleCrewUpdate = (count) => {
-    console.log("Artists in room:", count);
-    setCurrentCrewCount(Number(count));
+  // 1. REGISTER ALL LISTENERS IMMEDIATELY
+  useEffect(() => {
+  if (!socket || !wallCode) return;
+
+  console.log("Initializing Socket Listeners for Wall:", wallCode);
+
+  // 1. Handle Late Joiners
+  const handleAlreadyStarted = (data) => {
+    console.log("LATE JOINER SYNC RECEIVED:", data);
+    setIsSpectator(true);
+    setStarted(true); 
+    if (data.finishAt) setEndTime(data.finishAt);
   };
 
-  // 1. Change 'room_data' to 'room_count_update' to match the backend
-  socket.on("room_count_update", handleCrewUpdate);
+  // 2. Handle Fresh Starts (for people already in the lobby)
+  const handleStartConfirmed = (data) => {
+    console.log("Mission Start Confirmed:", data);
+    setStarted(true);
+    setIsSpectator(false); // Ensure they aren't locked if they were there early
+    if (data.finishAt) setEndTime(data.finishAt);
+  };
 
-  // 2. Ask the server for the current count immediately (for late joiners)
-  socket.emit("request_room_update", { wallCode });
+  socket.on("already_started", handleAlreadyStarted);
+  socket.on("mission_start_confirmed", handleStartConfirmed);
+
+  // 3. THE MISSING LINK: Tell the server we've arrived at the canvas
+  // This triggers the backend logic we wrote to check the DB status
+  socket.emit("join_wall", { 
+    wallCode: wallCode.trim().toUpperCase(), 
+    artistName: artistName,
+    muralName: muralName 
+  });
 
   return () => {
-    socket.off("room_count_update", handleCrewUpdate);
+    socket.off("already_started", handleAlreadyStarted);
+    socket.off("mission_start_confirmed", handleStartConfirmed);
   };
-}, [socket, wallCode]); // Added wallCode to dependencies
+}, [socket, wallCode, artistName, muralName]);
+  
+  useEffect(() => {
+    if (!socket) return;
 
- const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
+    const handleCrewUpdate = (count) => {
+      console.log("Artists in room:", count);
+      setCurrentCrewCount(Number(count));
+    };
+
+    // 1. Change 'room_data' to 'room_count_update' to match the backend
+    socket.on("room_count_update", handleCrewUpdate);
+
+    // 2. Ask the server for the current count immediately (for late joiners)
+    socket.emit("request_room_update", { wallCode });
+
+    return () => {
+      socket.off("room_count_update", handleCrewUpdate);
+    };
+  }, [socket, wallCode]); // Added wallCode to dependencies
+
+  const rattleSound = useRef(new Audio("/sounds/sprayCanShake.wav"));
 
   const handleRattle = useCallback(() => {
     if (rattleSound.current) {
@@ -89,20 +129,20 @@ useEffect(() => {
 
   const isActive = started && !isFinished;
   // 1. Listen for the Global Start signal
-  useEffect(() => {
-    if (!socket) return;
+  // useEffect(() => {
+  //   if (!socket) return;
 
-    const handleStart = (data) => {
-      console.log("Mural Started Data Received:", data);
-      // Use the finishAt timestamp from the server
-      setStarted(true);
-      if (data.finishAt) {
-        setEndTime(data.finishAt);
-      }
-    };
-    socket.on("mission_start_confirmed", handleStart);
-    return () => socket.off("mission_start_confirmed", handleStart);
-  }, [socket]);
+  //   const handleStart = (data) => {
+  //     console.log("Mural Started Data Received:", data);
+  //     // Use the finishAt timestamp from the server
+  //     setStarted(true);
+  //     if (data.finishAt) {
+  //       setEndTime(data.finishAt);
+  //     }
+  //   };
+  //   socket.on("mission_start_confirmed", handleStart);
+  //   return () => socket.off("mission_start_confirmed", handleStart);
+  // }, [socket]);
 
   // 2. The Synced Ticker
   useEffect(() => {
@@ -125,45 +165,42 @@ useEffect(() => {
     return () => clearInterval(timer);
   }, [started, endTime, isFinished]);
 
-
-
-useEffect(() => {
-  if (!socket) return;
-
-  socket.on("mission_ended", () => {
-    setIsFinished(true);
-    console.log("Mission ended signal received.");
-
-    // 1. Wait 2 seconds for dramatic effect 
-    // 2. Then trigger the navigation to the Reveal page
-    setTimeout(() => {
-      if (onFinish) {
-        onFinish(); // This calls navigate(`/reveal/${wallCode}`) in your wrapper!
-      }
-    }, 2000);
-  });
-
-  return () => socket.off("mission_ended");
-}, [socket, onFinish]);
-
-
-
-const startMission = () => {
+  useEffect(() => {
     if (!socket) return;
-    
+
+    socket.on("mission_ended", () => {
+      setIsFinished(true);
+      console.log("Mission ended signal received.");
+
+      // 1. Wait 2 seconds for dramatic effect
+      // 2. Then trigger the navigation to the Reveal page
+      setTimeout(() => {
+        if (onFinish) {
+          onFinish(); // This calls navigate(`/reveal/${wallCode}`) in your wrapper!
+        }
+      }, 2000);
+    });
+
+    return () => socket.off("mission_ended");
+  }, [socket, onFinish]);
+
+  const startMission = () => {
+    if (!socket) return;
+
     console.log("Admin is starting mission...");
-    
+
     // Tell the server to start the countdown for everyone in the room
     socket.emit("start_mission", {
       wallCode: wallCode,
       muralName: muralName,
       durationSeconds: durationSeconds, // This uses the prop you already have
     });
-  }
-  
+  };
+
   return (
     <div className="fixed inset-0 bg-[#050505] flex flex-col z-50 overflow-hidden">
       {/* HUD: Top Bar */}
+      Started: {started ? "YES" : "NO"} | Spectator: {isSpectator ? "YES" : "NO"}
       <div className="relative z-[110]">
         <SessionHUD
           muralName={muralName}
@@ -185,7 +222,10 @@ const startMission = () => {
          ${!isActive ? "pointer-events-none" : "pointer-events-auto"}
           ${isFinished ? "grayscale-0 contrast-125" : ""}`}
         >
-          <div ref={renderRef} className="relative w-full h-full cursor-crosshair z-[60]" />
+          <div
+            ref={renderRef}
+            className="relative w-full h-full cursor-crosshair z-[60]"
+          />
 
           {/* MISSION OVERLAY*/}
           {isFinished && (
@@ -198,8 +238,44 @@ const startMission = () => {
               </p>
             </div>
           )}
+          {/* 6. SPECTATOR OVERLAY (For late joiners) */}
+          {isSpectator && !isFinished && (
+            <div className="absolute inset-0 z-[90] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 pointer-events-auto">
+              {/* Animated Ring with Timer */}
+              <div className="relative mb-8 flex items-center justify-center">
+                <div className="w-32 h-32 border-2 border-white/5 border-t-yellow-500 rounded-full animate-spin [animation-duration:3s]" />
+                <div className="absolute flex flex-col items-center">
+                  <span className="text-zinc-500 font-mono text-[10px] tracking-widest uppercase">
+                    Ends In
+                  </span>
+                  <span className="text-3xl font-black text-white tabular-nums tracking-tighter">
+                    {getTimerDisplay()}
+                  </span>
+                </div>
+              </div>
+
+              <h2 className="text-4xl font-black italic text-white mb-2 tracking-tighter">
+                SESSION IN PROGRESS
+              </h2>
+              <p className="text-zinc-500 font-mono text-xs uppercase tracking-[0.3em] max-w-xs leading-relaxed">
+                Wall is locked for new tags. <br />
+                <span className="text-yellow-400 animate-pulse">
+                  Wait for the global reveal...
+                </span>
+              </p>
+
+              {/* Small secondary status bar */}
+              <div className="mt-8 flex items-center gap-2 px-4 py-1.5 bg-white/5 rounded-full">
+                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-ping" />
+                <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">
+                  Live Feed Synced
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* 5. ADD ADMIN OVERLAY (Waiting for start) */}
-          {!started && (
+          {!started && !isSpectator && (
             <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-md pointer-events-auto">
               <AdminOverlay
                 wallCode={wallCode}
@@ -209,7 +285,6 @@ const startMission = () => {
               />
             </div>
           )}
-    
 
           {started && (
             <div
@@ -238,7 +313,11 @@ const startMission = () => {
 
       {/* TOOLBELT: Control Panel */}
       <div
-        className={!isActive ? "opacity-20 pointer-events-none" : "opacity-100"}
+        className={
+          !isActive || isSpectator
+            ? "opacity-20 pointer-events-none"
+            : "opacity-100"
+        }
       >
         <Toolbelt
           colors={colors}
