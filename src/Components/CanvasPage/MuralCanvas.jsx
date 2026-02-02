@@ -287,9 +287,11 @@ export default function MuralCanvas({
         </div>
 
         {/* Instructions underneath the canvas */}
-        <p className="mt-6 pb-24 text-zinc-500 font-mono text-[10px] uppercase tracking-[0.5em] animate-pulse">
+        <div>
+        <p className="mt-6 pb-4 text-zinc-500 font-mono text-[10px] uppercase tracking-[0.5em] animate-pulse">
           Click and Drag to Tag
         </p>
+        </div>
       </div>
 
       {/* TOOLBELT: Control Panel */}

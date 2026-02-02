@@ -2,9 +2,9 @@
 const isLocal = window.location.hostname === "localhost";
 
 export const API_BASE_URL = isLocal 
-  ? "http://localhost:3001" 
+  ? "http://localhost:3000" 
   : "https://graffiti-treaty-backend.onrender.com";
 
 export const SOCKET_URL = isLocal 
-  ? "http://localhost:3001" 
+  ? "http://localhost:3000" 
   : "https://graffiti-treaty-backend.onrender.com";

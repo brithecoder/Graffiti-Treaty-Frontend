@@ -199,7 +199,7 @@ export default function MuralReveal() {
   };
 
   return (
-    <div className="fixed inset-0 bg-zinc-950 z-[200] flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 bg-zinc-950 z-[200] flex flex-col items-center justify-between p-6 overflow-y-auto">
       {/* HEADER SECTION */}
       <div className="text-center mb-6">
         <h2 className="text-treaty-neon italic font-black text-6xl mb-2 tracking-tighter">
@@ -222,7 +222,7 @@ export default function MuralReveal() {
       </div>
 
       {/* CANVAS CONTAINER */}
-      <div className="relative w-full max-w-5xl aspect-video">
+      <div className="relative w-full max-w-5xl aspect-video max-h-[60vh]">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
             <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />

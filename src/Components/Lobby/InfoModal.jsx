@@ -34,12 +34,12 @@ export default function InfoModal({ isOpen, onClose }) {
             <div className="space-y-6 font-mono text-xs md:text-sm text-zinc-400">
               <section>
                 <h4 className="text-white font-bold mb-1 uppercase tracking-wider">01. The Objective</h4>
-                <p>Digital graffiti collective. Multiple artists occupy one coordinate plane. No rules, just the tag.</p>
+                <p>Digital Art collective. Multiple artists occupy one coordinate plane. No rules, just the tag.</p>
               </section>
 
               <section>
                 <h4 className="text-white font-bold mb-1 uppercase tracking-wider">02. Tools of Chaos</h4>
-                <p>Use the <span className="text-[#39ff14]">Spray Can</span> for broad coverage or the <span className="text-[#ff007f]">Fat Cap</span> for heavy fill. The eraser is for corrections... or sabotage.</p>
+                <p>Use the <span className="text-[#39ff14]">Spray Can</span> for broad coverage or the <span className="text-[#ff007f]">Fat Cap</span> for heavy fill. The eraser is for light corrections...</p>
               </section>
 
               <section>
