@@ -128,23 +128,6 @@ export default function MuralCanvas({
   }, []);
 
   const isActive = started && !isFinished;
-  // 1. Listen for the Global Start signal
-  // useEffect(() => {
-  //   if (!socket) return;
-
-  //   const handleStart = (data) => {
-  //     console.log("Mural Started Data Received:", data);
-  //     // Use the finishAt timestamp from the server
-  //     setStarted(true);
-  //     if (data.finishAt) {
-  //       setEndTime(data.finishAt);
-  //     }
-  //   };
-  //   socket.on("mission_start_confirmed", handleStart);
-  //   return () => socket.off("mission_start_confirmed", handleStart);
-  // }, [socket]);
-
-  // 2. The Synced Ticker
   useEffect(() => {
     if (!started || !endTime || isFinished) return;
 
@@ -200,7 +183,6 @@ export default function MuralCanvas({
   return (
     <div className="fixed inset-0 bg-[#050505] flex flex-col z-50 overflow-hidden">
       {/* HUD: Top Bar */}
-      Started: {started ? "YES" : "NO"} | Spectator: {isSpectator ? "YES" : "NO"}
       <div className="relative z-[110]">
         <SessionHUD
           muralName={muralName}

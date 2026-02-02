@@ -1,16 +1,74 @@
-# React + Vite
+# 🎨 Graffiti Treaty Mural Engine | Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A dynamic, real-time collaborative graffiti application. This frontend is built with React and Vite, utilizing high-performance canvas rendering and WebSocket synchronization to allow multiple artists to tag a shared wall simultaneously.
 
-Currently, two official plugins are available:
+## 🚀 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Real-time Collaborative Canvas:** High-frequency stroke rendering using Socket.io.
+* **Synchronized Mission Ticker:** A server-authoritative countdown timer that keeps all clients in perfect sync.
+* **Spectator Mode:** Automatic reconciliation for late joiners, allowing them to view live progress without interrupting active sessions.
+* **Role-Based UI:** Distinct interfaces for Session Admins (Lobby controls) and Artists (Toolbelt/Canvas).
+* **Dynamic Reveal:** An automated transition to a global "Masterpiece Reveal" once the mission timer hits zero.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠 Tech Stack
 
-## Expanding the ESLint configuration
+* **Framework:** React 18 (Vite)
+* **State Management:** React Context API (Auth) & Hooks (`useState`, `useEffect`, `useRef`)
+* **Real-time Communication:** Socket.io-client
+* **Routing:** React Router DOM
+* **Styling:** Tailwind CSS (for high-speed, responsive UI)
+* **Audio:** HTML5 Audio API for immersive SFX (spray can rattling)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🏗 Component Architecture
+
+### Core Components
+* **`MuralCanvas.jsx`**: The primary engine. Manages socket listeners, timer logic, and spectator overlays.
+* **`Toolbelt.jsx`**: Custom UI for color selection, brush sizing, and tool switching (Eraser/Cap types).
+* **`SessionHUD.jsx`**: Heads-Up Display showing the live timer, artist count, and wall metadata.
+* **`AdminOverlay.jsx`**: The pre-mission lobby interface where the host initiates the connection.
+* **`MuralReveal.jsx`**: A post-session gallery view that fetches and displays the final state of the wall.
+
+### Custom Hooks
+* **`useMuralEngine.js`**: Abstracts the complex Canvas 2D API logic, handling drawing coordinates and stroke interpolation.
+
+---
+
+## 🔄 Real-Time Synchronization Logic
+
+The frontend follows a **"Listen-First"** architecture:
+1.  **Mount:** Component registers socket listeners (`mission_start_confirmed`, `already_started`).
+2.  **Join:** Component emits `join_wall` with the user's credentials.
+3.  **Sync:** If a mission is active, the server pushes a `finishAt` timestamp; the client then calculates the local remaining time relative to the server's clock to prevent drift.
+
+---
+
+## ⚙️ Setup & Installation
+
+**1. Clone and Install:**
+```bash
+git clone [your-repo-link]
+cd treaty-frontend
+npm install
+```
+**2. Environment Configuration: Create a .env file in the root:**
+
+```Code snippet
+VITE_SOCKET_URL=http://localhost:3000
+```
+**3. Run Development Server:**
+
+```Bash
+npm run dev
+```
+
+# 📱 Responsive Design
+The UI is optimized for a "Mobile-First" approach:
+
+Desktop: Full-screen canvas with side-aligned toolbelts.
+
+Tablet/Mobile: Bottom-docked toolbelts and scaled aspect-ratio containers to ensure the canvas remains interactive on smaller touch devices.
+
