@@ -3,7 +3,6 @@ import { useMuralEngine } from "../../CustomHooks/useMuralEngine";
 import colors from "../../constants/colors";
 import SessionHUD from "./SessionHUD";
 import Toolbelt from "./Toolbelt";
-import MuralReveal from "../Mural/MuralReveal";
 import AdminOverlay from "../Lobby/AdminOverlay";
 
 export default function MuralCanvas({

@@ -6,6 +6,8 @@ import JoinRoom from "./JoinRoom";
 import CreateWall from "./CreateWall";
 import InfoModal from "./InfoModal";
 import socket from "../../socket";
+import { API_BASE_URL } from '../../apiConfig'
+
 
 export default function FrontPage() {
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ export default function FrontPage() {
     if (!muralName || !artistTag) return alert("Artist Tag and Mural Name required.");
 
     try {
-      const response = await fetch("http://localhost:3000/api/mural/create", {
+      const response = await fetch(`${API_BASE_URL}/api/mural/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

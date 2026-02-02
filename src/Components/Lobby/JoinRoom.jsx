@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '../../apiConfig'
 
 
 export default function JoinRoom({ onBack, onJoin }) {
@@ -14,7 +15,7 @@ export default function JoinRoom({ onBack, onJoin }) {
     setError(''); // Clear previous errors
     
     try {
-      const response = await fetch('http://localhost:3000/api/mural/join', {
+      const response = await fetch(`${API_BASE_URL}/api/mural/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname, wallCode }),

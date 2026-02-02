@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams,useLocation } from "react-router-dom";
 import p5 from "p5";
+import { API_BASE_URL } from '../../apiConfig'
 
 export default function MuralReveal() {
   const revealRef = useRef(null);
@@ -35,7 +36,7 @@ export default function MuralReveal() {
 
         try {
           const res = await fetch(
-            `http://localhost:3000/api/mural/strokes/${wallCode}`,
+            `${API_BASE_URL}/api/mural/strokes/${wallCode}`,
           );
           const data = await res.json();
           // Sort chronologically

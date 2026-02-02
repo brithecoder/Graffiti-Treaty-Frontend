@@ -22,21 +22,19 @@ export function useMuralEngine({
   const bgRef = useRef(bgType);
   const slotIndexRef = useRef(null);
 
-
-
   // --- GARBAGE COLLECTION & TIMELAPSE REFS ---
   const strokePointsRef = useRef([]); // Stores coordinates for the current line
   const clearFlag = useRef(false);
   const dripsRef = useRef([]);
-  const spraySound = useRef(new Audio("sounds/paintingSound.wav"));
+  const spraySound = useRef(new Audio("/sounds/paintingSound.wav"));
   const boundsRef = useRef({ x: 0, y: 0, w: 0, h: 0 }); // Store bounds in a Ref
   const pgRef = useRef(null); // Store PG in a Ref so return can see it
-
 
   useEffect(() => {
     if (spraySound.current) {
       spraySound.current.load(); // Forces the browser to buffer the file
       spraySound.current.volume = 0.5; // Optional: set a comfortable volume
+      spraySound.current.loop = true; // Make sure it stays on while dragging
     }
   }, []);
 
@@ -53,8 +51,6 @@ export function useMuralEngine({
     const storageKey = `mural_save_${wallCode}`;
 
     const sketch = (p) => {
-      // let grid = { cols: 6, rows: 5 };
-
       p.setup = async () => {
         const container = renderRef.current;
         if (!container) return;
@@ -105,102 +101,109 @@ export function useMuralEngine({
           dripsRef.current = [];
           clearFlag.current = false;
         }
+
         // --- DRAWING LOGIC ---
         if (p.mouseIsPressed) {
-        const topElement = document.elementFromPoint(p.winMouseX, p.winMouseY);
-       if (topElement && topElement.tagName === 'CANVAS') {
-          // RECORDING FOR TIMELAPSE: Add current point to Ref
-          // We only record every frame to keep data light
-          // --- THINNING DATA (Point Skipper) ---
-          // --- THINNING DATA (Point Skipper) ---
-          p.pmouseX = p.mouseX;
-          p.pmouseY = p.mouseY;
-        // Check if mouse is actually inside the canvas boundaries
-  const isInside = p.mouseX >= 0 && p.mouseX <= p.width && 
-                   p.mouseY >= 0 && p.mouseY <= p.height;
+          const topElement = document.elementFromPoint(p.winMouseX, p.winMouseY);
+          if (topElement && topElement.tagName === 'CANVAS') {
+            
+            // SPRAY LOGIC START: Play if inside canvas
+            if (spraySound.current && spraySound.current.paused) {
+              spraySound.current.play().catch(() => {});
+            }
 
-  if (isInside && p.focused) {
-    const pctX = p.mouseX / p.width;
-    const pctY = p.mouseY / p.height;
-    const lastPt = strokePointsRef.current[strokePointsRef.current.length - 1];
-    // strokePointsRef.current.push({ x: pctX, y: pctY });
-    if (!lastPt || p.dist(lastPt.x * p.width, lastPt.y * p.height, p.mouseX, p.mouseY) > 1) {
-       strokePointsRef.current.push({ x: pctX, y: pctY });
-    }
-  }
-          const currentColor = colorRef.current;
-          const currentSize = sizeRef.current;
-          const isErasing = eraserRef.current;
-          const currentCap = capRef.current;
+            p.pmouseX = p.mouseX;
+            p.pmouseY = p.mouseY;
+            
+            const isInside = p.mouseX >= 0 && p.mouseX <= p.width && 
+                             p.mouseY >= 0 && p.mouseY <= p.height;
 
-          let particleCount = 20,
-            spread = currentSize,
-            pMin = 1,
-            pMax = 3,
-            dripChance = 0.04;
+            if (isInside && p.focused) {
+              const pctX = p.mouseX / p.width;
+              const pctY = p.mouseY / p.height;
+              const lastPt = strokePointsRef.current[strokePointsRef.current.length - 1];
+              if (!lastPt || p.dist(lastPt.x * p.width, lastPt.y * p.height, p.mouseX, p.mouseY) > 1) {
+                 strokePointsRef.current.push({ x: pctX, y: pctY });
+              }
+            }
 
-          if (currentCap === "skinny") {
-            particleCount = 35;
-            spread = currentSize * 0.4;
-            pMin = 0.5;
-            pMax = 1.5;
-            dripChance = 0.01;
-          } else if (currentCap === "fat") {
-            particleCount = 12;
-            spread = currentSize * 2.2;
-            pMin = 2;
-            pMax = 5;
-            dripChance = 0.06;
-          }
+            const currentColor = colorRef.current;
+            const currentSize = sizeRef.current;
+            const isErasing = eraserRef.current;
+            const currentCap = capRef.current;
 
-          if (isErasing) pgRef.current.erase();
-          else pgRef.current.noErase();
-          pgRef.current.noStroke();
-          const d = p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY);
-          if(d > 100){
+            let particleCount = 20,
+              spread = currentSize,
+              pMin = 1,
+              pMax = 3,
+              dripChance = 0.04;
 
-          p.pmouseX = p.mouseX;
-          p.pmouseY = p.mouseY; 
-          }else{
-          const steps = p.max(
-            1,
-            p.floor(p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY) / 5),
-          );
-          for (let s = 0; s < steps; s++) {
-            const lerpX = p.lerp(p.pmouseX, p.mouseX, s / steps);
-            const lerpY = p.lerp(p.pmouseY, p.mouseY, s / steps);
-            if (isErasing) {
-              pgRef.current.ellipse(lerpX, lerpY, currentSize * 2);
+            if (currentCap === "skinny") {
+              particleCount = 35;
+              spread = currentSize * 0.4;
+              pMin = 0.5;
+              pMax = 1.5;
+              dripChance = 0.01;
+            } else if (currentCap === "fat") {
+              particleCount = 12;
+              spread = currentSize * 2.2;
+              pMin = 2;
+              pMax = 5;
+              dripChance = 0.06;
+            }
+
+            if (isErasing) pgRef.current.erase();
+            else pgRef.current.noErase();
+            pgRef.current.noStroke();
+
+            const d = p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY);
+            if(d > 100){
+              p.pmouseX = p.mouseX;
+              p.pmouseY = p.mouseY; 
             } else {
-              pgRef.current.fill(currentColor);
-              for (let i = 0; i < particleCount; i++) {
-                pgRef.current.ellipse(
-                  lerpX + p.randomGaussian(0, spread),
-                  lerpY + p.randomGaussian(0, spread),
-                  p.random(pMin, pMax),
-                );
+              const steps = p.max(
+                1,
+                p.floor(p.dist(p.pmouseX, p.pmouseY, p.mouseX, p.mouseY) / 5),
+              );
+              for (let s = 0; s < steps; s++) {
+                const lerpX = p.lerp(p.pmouseX, p.mouseX, s / steps);
+                const lerpY = p.lerp(p.pmouseY, p.mouseY, s / steps);
+                if (isErasing) {
+                  pgRef.current.ellipse(lerpX, lerpY, currentSize * 2);
+                } else {
+                  pgRef.current.fill(currentColor);
+                  for (let i = 0; i < particleCount; i++) {
+                    pgRef.current.ellipse(
+                      lerpX + p.randomGaussian(0, spread),
+                      lerpY + p.randomGaussian(0, spread),
+                      p.random(pMin, pMax),
+                    );
+                  }
+                  // PAUSE REMOVED FROM HERE
+                }
+              }
+            
+              pgRef.current.noErase();
+            
+              if (!isErasing && p.random(1) < dripChance) {
+                dripsRef.current.push({
+                  x: p.mouseX + p.random(-spread / 2, spread / 2),
+                  y: p.mouseY,
+                  velocity: p.random(1.0, 2.0),
+                  size: p.random(1, 2),
+                  color: currentColor,
+                  life: p.random(40, 100),
+                });
               }
             }
           }
-        
-          pgRef.current.noErase();
-        
-          // Drip Logic
-          if (!isErasing && p.random(1) < dripChance) {
-            dripsRef.current.push({
-              x: p.mouseX + p.random(-spread / 2, spread / 2),
-              y: p.mouseY,
-              velocity: p.random(1.0, 2.0),
-              size: p.random(1, 2),
-              color: currentColor,
-              life: p.random(40, 100),
-            });
+        } else {
+          // SPRAY LOGIC STOP: Pause if mouse is NOT pressed
+          if (spraySound.current && !spraySound.current.paused) {
+            spraySound.current.pause();
           }
         }
-      }
-    }
-        // --- DRIP GARBAGE COLLECTION ---
-        // We iterate backwards and splice to remove old drips from memory
+
         for (let i = dripsRef.current.length - 1; i >= 0; i--) {
           let d = dripsRef.current[i];
           pgRef.current.noStroke();
@@ -215,102 +218,59 @@ export function useMuralEngine({
       };
 
       const renderStaticStroke = (stroke) => {
-  if (!stroke.points || stroke.points.length === 0) return;
-
-  pgRef.current.push();
-  pgRef.current.noStroke();
-  pgRef.current.fill(stroke.color);
-
-  const isFat = stroke.capType === "fat";
-  const particleCount = isFat ? 12 : 35;
-  const spread = (stroke.brushSize || 15) * (isFat ? 2.2 : 1);
-
-  // We start at i=0 so even a single-point stroke gets processed
-  for (let i = 0; i < stroke.points.length; i++) {
-    // 1. Scale percentage to current pixels
-    const p1 = { 
-      x: stroke.points[i].x * p.width, 
-      y: stroke.points[i].y * p.height 
-    };
-    
-    // 2. Get the next point, or just use p1 again if it's a dot
-    const nextPt = stroke.points[i + 1];
-    const p2 = nextPt 
-      ? { x: nextPt.x * p.width, y: nextPt.y * p.height } 
-      : p1;
-
-    const d = p.dist(p1.x, p1.y, p2.x, p2.y);
-    
-    // 3. Even if distance is 0 (a dot), we do 1 step
-    const steps = p.max(1, p.floor(d / 5));
-
-    for (let s = 0; s < steps; s++) {
-      const lerpX = p.lerp(p1.x, p2.x, s / steps);
-      const lerpY = p.lerp(p1.y, p2.y, s / steps);
-
-      for (let j = 0; j < particleCount; j++) {
-        pgRef.current.ellipse(
-          lerpX + p.random(-spread, spread),
-          lerpY + p.random(-spread, spread),
-          p.random(1, 3)
-        );
-      }
-    }
-    
-    // If it was just a dot, we're done after one iteration
-    if (!nextPt) break;
-  }
-  pgRef.current.pop();
-};
+        if (!stroke.points || stroke.points.length === 0) return;
+        pgRef.current.push();
+        pgRef.current.noStroke();
+        pgRef.current.fill(stroke.color);
+        const isFat = stroke.capType === "fat";
+        const particleCount = isFat ? 12 : 35;
+        const spread = (stroke.brushSize || 15) * (isFat ? 2.2 : 1);
+        for (let i = 0; i < stroke.points.length; i++) {
+          const p1 = { x: stroke.points[i].x * p.width, y: stroke.points[i].y * p.height };
+          const nextPt = stroke.points[i + 1];
+          const p2 = nextPt ? { x: nextPt.x * p.width, y: nextPt.y * p.height } : p1;
+          const d = p.dist(p1.x, p1.y, p2.x, p2.y);
+          const steps = p.max(1, p.floor(d / 5));
+          for (let s = 0; s < steps; s++) {
+            const lerpX = p.lerp(p1.x, p2.x, s / steps);
+            const lerpY = p.lerp(p1.y, p2.y, s / steps);
+            for (let j = 0; j < particleCount; j++) {
+              pgRef.current.ellipse(lerpX + p.random(-spread, spread), lerpY + p.random(-spread, spread), p.random(1, 3));
+            }
+          }
+          if (!nextPt) break;
+        }
+        pgRef.current.pop();
+      };
     
       p.runTimelapse = (allStrokes) => {
         p.noLoop();
-        console.log("Timelapse started with", allStrokes.length, "strokes");
-        pgRef.current.clear(); // Clear the wall for the reveal
+        pgRef.current.clear();
         dripsRef.current = [];
         let i = 0;
-        const totalDuration = 5000; // 5 seconds in milliseconds
+        const totalDuration = 5000;
         const strokeDelay = allStrokes.length > 0 ? totalDuration / allStrokes.length : 160;
         const interval = setInterval(() => {
           if (i >= allStrokes.length) {
             clearInterval(interval);
-            console.log("Timelapse finished");
-            setisFinished(true)
+            setisFinished(true);
             p.loop();
             return;
           }
-          const stroke = allStrokes[i];
-    // const scaledStroke = {
-    //   ...stroke,
-    //   points: stroke.points.map(pt => ({
-    //     x: pt.x * p.width,
-    //     y: pt.y * p.height
-    //   }))
-    // };
-    renderStaticStroke(stroke);
-    p.background(10, 10, 10); 
+          renderStaticStroke(allStrokes[i]);
+          p.background(10, 10, 10); 
           p.image(pgRef.current, 0, 0);
           i++;
-        }, strokeDelay); // 160ms speed
+        }, strokeDelay);
       };
+
       p.mousePressed = () => {
-        if (
-          p.mouseX >= 0 &&
-          p.mouseX <= p.width &&
-          p.mouseY >= 0 &&
-          p.mouseY <= p.height
-        ) {
-          // 1. FIX PHANTOM LINES: Sync pmouse to current mouse immediately
+        if (p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
           p.pmouseX = p.mouseX;
           p.pmouseY = p.mouseY;
-          // Reset stroke points for a new line
-          strokePointsRef.current = [
-            { x: Math.round(p.mouseX), y: Math.round(p.mouseY) },
-          ];
+          strokePointsRef.current = [{ x: Math.round(p.mouseX), y: Math.round(p.mouseY) }];
           if (spraySound.current) {
             spraySound.current.currentTime = 0;
-            spraySound.current.loop = true;
-            spraySound.current.play().catch(() => {});
           }
         }
       };
@@ -318,10 +278,7 @@ export function useMuralEngine({
       p.mouseReleased = () => {
         if (spraySound.current) {
           spraySound.current.pause();
-          spraySound.current.currentTime = 0;
         }
-
-        // --- END STROKE DATA COLLECTION ---
         if (strokePointsRef.current.length > 0) {
           const strokeData = {
             wallCode,
@@ -335,21 +292,14 @@ export function useMuralEngine({
             originalHeight: p.height,
             timestamp: Date.now(),
           };
-
-          // Emit to server for DB recording and sync
           socket.emit("send_stroke", strokeData);
-
-          // Garbage Collection: Clear the points ref so memory stays fresh
           strokePointsRef.current = [];
         }
         try {
-          // We only save a smaller version or a compressed string
-          const snapshot = pgRef.current.canvas.toDataURL("image/webp", 0.5); // Use WebP + lower quality to save space
+          const snapshot = pgRef.current.canvas.toDataURL("image/webp", 0.5);
           localStorage.setItem(storageKey, snapshot);
         } catch (err) {
           if (err.name === "QuotaExceededError") {
-            console.warn("Storage full! Clearing old saves to make room...");
-            // Garbage Collection: Clear other mural saves to make room for the current one
             Object.keys(localStorage).forEach((key) => {
               if (key.startsWith("mural_save_") && key !== storageKey) {
                 localStorage.removeItem(key);
@@ -368,13 +318,9 @@ export function useMuralEngine({
         if (container && pgRef.current) {
           const newW = container.offsetWidth;
           const newH = container.offsetHeight;
-          // 1. Create a temporary buffer at the new size
           let newPg = p.createGraphics(newW, newH);
-          // 2. Copy the old content to the new buffer (stretching to fit)
           newPg.image(pgRef.current, 0, 0, newW, newH);
-          // 3. Resize the main canvas
           p.resizeCanvas(newW, newH);
-          // 4. Clean up old graphics memory and swap
           pgRef.current.remove();
           pgRef.current = newPg;
           boundsRef.current = { x: 0, y: 0, w: newW, h: newH };
@@ -388,7 +334,6 @@ export function useMuralEngine({
     p5Instance.current = new p5(sketch);
 
     return () => {
-      // CLEANUP: Kill the p5 instance and sounds to prevent memory leaks
       p5Instance.current?.remove();
       if (spraySound.current) {
         spraySound.current.pause();
@@ -399,23 +344,14 @@ export function useMuralEngine({
 
   return {
     clearCanvas: () => {
-      // 1. Tell the backend to wipe your strokes
       socket.emit("clear_quadrant", { wallCode, artistName });
-      // 2. Access the refs
       const pg = pgRef.current;
-      if (pg) {
-        // This is much faster and cleaner than drawing an "eraser rectangle"
-        pg.clear();
-      }
+      if (pg) pg.clear();
       dripsRef.current = [];
       clearFlag.current = true;
-      console.log("Canvas wiped locally and broadcast to DB.");
     },
     startReveal: (allStrokes) => {
-      if (p5Instance.current) {
-        // We reach into the p5 instance and call the function you defined inside sketch
-        p5Instance.current.runTimelapse(allStrokes);
-      }
+      if (p5Instance.current) p5Instance.current.runTimelapse(allStrokes);
     },
     getSnapshot: () => ({
       artist: artistName,
