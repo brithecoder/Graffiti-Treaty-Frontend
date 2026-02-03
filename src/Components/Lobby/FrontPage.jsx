@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useEffect, useState } from "react";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -7,11 +7,14 @@ import CreateWall from "./CreateWall";
 import InfoModal from "./InfoModal";
 import socket from "../../socket";
 import { API_BASE_URL } from '../../apiConfig'
-
+import LoadingScreen from "./LoadingScreen";
 
 export default function FrontPage() {
   const navigate = useNavigate();
   
+  // --- SERVER WAKE LOCK ---
+  const [isWaking, setIsWaking] = useState(true);
+
   // --- UI STATE ---
   const [view, setView] = useState("MENU"); // MENU, CREATE, or JOIN
   const [infoOpen, setInfoOpen] = useState(false);
@@ -21,6 +24,27 @@ export default function FrontPage() {
   const [artistTag, setArtistTag] = useState("");
   const [partySize, setPartySize] = useState(1);
   const [duration, setDuration] = useState(60);
+
+
+
+  // --- WAKE UP LOGIC ---
+  useEffect(() => {
+    const wakeUp = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/health`);
+        if (response.ok) {
+          setIsWaking(false); // Server responded! Hide the sphere.
+        } else {
+          throw new Error("Not ready");
+        }
+      } catch (err) {
+        console.log("Wall is asleep... retrying in 2s",err);
+        setTimeout(wakeUp, 2000); // Try again every 2 seconds
+      }
+    };
+
+    wakeUp();
+  }, []);
 
   // --- HANDLERS ---
 
@@ -75,6 +99,9 @@ export default function FrontPage() {
       },
     });
   };
+     if (isWaking) {
+    return <LoadingScreen message="WAKING UP THE MURAL SERVER..." />;
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6 font-sans overflow-hidden">
