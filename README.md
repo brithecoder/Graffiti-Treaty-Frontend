@@ -2,8 +2,13 @@
 
 A dynamic, real-time collaborative graffiti application. This frontend is built with React and Vite, utilizing high-performance canvas rendering and WebSocket synchronization to allow multiple artists to tag a shared wall simultaneously.
 
-## 🚀 Key Features
 
+## 🚀 Live Deployments
+- **Frontend (Client):** [https://graffiti-treaty.netlify.app/](https://graffiti-treaty.netlify.app/)
+- **Backend (API):** [https://graffiti-treaty-backend.onrender.com](https://graffiti-treaty-backend.onrender.com)
+
+
+## 🚀 Key Features
 * **Real-time Collaborative Canvas:** High-frequency stroke rendering using Socket.io.
 * **Synchronized Mission Ticker:** A server-authoritative countdown timer that keeps all clients in perfect sync.
 * **Spectator Mode:** Automatic reconciliation for late joiners, allowing them to view live progress without interrupting active sessions.
@@ -68,7 +73,8 @@ npm run dev
 # 📱 Responsive Design
 The UI is optimized for a "Mobile-First" approach:
 
-Desktop: Full-screen canvas with side-aligned toolbelts.
+**Desktop:** Full-screen canvas with side-aligned toolbelts.
 
 Tablet/Mobile: Bottom-docked toolbelts and scaled aspect-ratio containers to ensure the canvas remains interactive on smaller touch devices.
 
+![Graffiti Treaty App Screenshot](./public/appSs.png)
